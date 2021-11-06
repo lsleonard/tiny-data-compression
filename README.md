@@ -1,2 +1,8 @@
 # tiny-data-compression
-Quickly compress tiny data, 6 to 512 bytes
+High-speed lossless compression of tiny data, 6 to 512 bytes
+
+Tiny data compression is not supported by major compression software tools. Now with td512 you can compress data from 6 to 512 bytes. Although the algorithm emphasizes speed, the minimum compression supported within each 64-byte block is 10%, with a goal of 25% or greater when possible. Because of its optimal compression using frequency analysis of values, the Huffman algorithm has been used effectively for many applications. For small datasets, however, the compression modes used in td512 can approach or exceed results of using the Huffman algorithm. And with a focus on speed of execution, Huffman and arithmetic coding are not practical algorithms for applications of tiny data. Two areas where high-speed compression using td512 might be applied are small message text and programmatic objects.
+
+With td512, you can call the td512 and td512d functions to perform compress and decompress of 1 to 512 bytes. The td512 interface performs compression of 6 to 512 bytes, but accepts 1 to 5 bytes and stores them without compression. The primary function of td512 is to use the td64 interface to compress blocks of 64 bytes until the final block of 64 or fewer bytes is compressed. Along with the number of bytes processed, a pass/fail bit is stored for each 64-byte (or smaller) block compressed, and either the compressed or uncompressed data is output. 
+
+With td64, you can call the td5 and td5d functions to compress and decompress 2 to 5 values. Or you can call td64 and td64d functions to compress and decompress 6 to 64 values. The td64 interface returns pass (number of compressed bits) or fail (0) and outputs only compressed values. Decompression requires input of the number of original values.

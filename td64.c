@@ -22,20 +22,7 @@
 // Notes for version 1.1:
 //  1. Tiny data compression integrates several compression modes: fixed bit, text mode, single value, string mode, and 7-bit encoding and decoding. td64 returns the number of compressed bytes or 0 if compression failed. Values are returned only if compression succeeds. Decoding of the td64 values requires the caller to supply the number of original bytes.
 
-#ifndef td64_h
-#define td64_h
-
-#include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
-//#define NDEBUG // disable asserts
-#include <assert.h>
-
-#define MAX_TD64_BYTES 64  // max input vals supported
-#define MIN_TD64_BYTES 2  // min input vals supported
-#define MAX_UNIQUES 16 // max uniques supported in input
-#define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
-#define MIN_VALUES_STRING_MODE 32 // min values to use string mode
+#include "td64.h"
 
 // fixed bit compression (fbc): for the number of uniques in input, the minimum number of input values for 25% compression
 // uniques   1  2  3  4  5   6   7   8   9   10  11  12  13  14  15  16
@@ -329,7 +316,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
             return 21;
         }
         default:
-            return -2; // number of values specified not supported (2 to 5 handled here)
+            return -9; // number of values specified not supported (2 to 5 handled here)
     }
 } // end td5
 
@@ -929,6 +916,26 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             highBitCheck |= inVal; // keep watch on high bit of unique values
         }
     }
+    if (nUniqueVals >= uniqueLimit / 2)
+    {
+        // check text mode validity as it's not considered after this
+        // text mode will have 3/4 text values, but for this case, use .5
+        // because this number of values will compress for standard text data.
+        // encodeTextMode verifies compression occurs
+        const uint32_t minTextChars=nValsInitLoop / 2 + 1;
+        if (predefinedTextCharCnt > minTextChars)
+        {
+            // save uniques for text mode failure
+            unsigned char saveUniques[nValsInitLoop];
+            memcpy(saveUniques, outVals+1, nUniqueVals);
+            
+            // encode in text mode if 12% compression achieved
+            uint32_t retBits=encodeTextMode(inVals, outVals, nValues, nValues*7);
+            if (retBits)
+                return retBits;
+            memcpy(outVals+1, saveUniques, nUniqueVals); // restore uniques
+        }
+    }
     if (nUniqueVals > uniqueLimit+(betterCompression ? 1 : 0))
     {
         // supported unique values exceeded
@@ -942,22 +949,6 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
                 return encode7bits(inVals, outVals, nValues);
         }
         return 0; // too many uniques to compress with fixed bit coding, random data fails here
-    }
-    if (nUniqueVals >= uniqueLimit / 2)
-    {
-        // check text mode validity as it's not considered after this
-        // text mode will have 3/4 text values, but for this case, use .5
-        // because this number of values will compress for standard text data.
-        // encodeTextMode verifies compression occurs
-        const uint32_t minTextChars=nValsInitLoop / 2 + 1;
-        if (predefinedTextCharCnt > minTextChars)
-        {
-            
-            // encode in text mode if 12% compression achieved
-            uint32_t retBits=encodeTextMode(inVals, outVals, nValues, nValues*7);
-            if (retBits)
-                return retBits;
-        }
     }
     // continue fixed bit loop with checks for high bit set and repeat counts
     // look for minimum count to validate single value mode
@@ -1433,7 +1424,7 @@ int32_t decode7bits(const unsigned char *inVals, unsigned char *outVals, const u
         outVals[nextOutVal++] = (unsigned char)(((val1 << 6) & 127) | (val2 >> 2));
         outVals[nextOutVal++] = (unsigned char)val1 >> 1;
     }
-    while (nextOutVal++ < nOriginalValues)
+    while (nextOutVal < nOriginalValues)
     {
         // output final values as full bytes because no bytes saved, only bits
         outVals[nextOutVal++] = inVals[nextInVal++];
@@ -1842,5 +1833,3 @@ int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_
     }
     return -8; // unexpected program error
 } // end td64d
-
-#endif /* td64_h */

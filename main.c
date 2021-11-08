@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
     fclose(ifile);
     
     // allocate "uncompressed size" + 3 bytes per block for the destination buffer
-    dst = (unsigned char*) malloc(len + 3 * len / 512 );
+    dst = (unsigned char*) malloc(len + 3 * (len / 512 + 1));
     if (argc >= 3)
     {
         sscanf(argv[2], "%d", &betterCompression);

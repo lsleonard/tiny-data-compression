@@ -1,10 +1,13 @@
 # tiny-data-compression
 High-speed lossless tiny data compression of 1 to 512 bytes
 
-   td512 filename [betterCompression [loopCount]]
-      filename is the name of the file to compress. The compressed output is written to filename.td512 and the decompressed output to filename.td512d.
-      betterCompression (default 0) is 0 for fastest run or non-zero for better compression. 
-      loopCount (default 1) is the loop count to use for performance testing. Also see BENCHMARK_LOOP_COUNT macro in main.c.
+td512 filename [betterCompression [loopCount]]
+   
+	filename is the name of the file to compress. The compressed output is written to filename.td512 and the decompressed output to filename.td512d.
+	
+	betterCompression (default 0) is 0 for fastest run or non-zero for better compression.
+	
+	loopCount (default 1) is the loop count to use for performance testing. Also see BENCHMARK_LOOP_COUNT macro in main.c.
 
 Tiny data compression is not usually supported by compression programs. Now with td512 you can compress data from 6 to 512 bytes. Although the algorithm emphasizes speed, the minimum compression supported within each 64-byte block is 10%, with a goal of 25% or greater when possible. Although Huffman coding, with its optimal compression using frequency analysis of values, has been used effectively for many applications, for small datasets the compression modes used in td512 approach or exceed the results of using the Huffman algorithm. And with a focus on speed of execution, Huffman and arithmetic coding are not practical algorithms for applications of tiny data. Two areas where high-speed compression using td512 might be applied are small message text and programmatic objects.
 

@@ -24,9 +24,6 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.//
 */
-// Notes for version 1.1:
-//  1. Main program reads a file into memory that is compressed by calling td512 repeatedly. When complete, the compressed data is written to a file and read for decompression by calling td512d. Input file is required argument 1. Optional argument 2 is 0 (default: faster compression) or 1 (better compression), and argument 3 is loop count (default: 1).
-
 #include "td512.h" // td512 functions
 
 #include <stdio.h>
@@ -34,7 +31,7 @@
 #include <time.h>
 #include <string.h>
 
-#define BENCHMARK_LOOP_COUNT // // special loop count for benchmarking
+//#define BENCHMARK_LOOP_COUNT // // special loop count for benchmarking
 
 int main(int argc, char* argv[])
 {

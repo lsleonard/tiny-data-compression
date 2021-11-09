@@ -5,23 +5,6 @@
 //
 //  Created by Stevan Leonard on 10/29/21.
 //  Copyright © 2021 L. Stevan Leonard. All rights reserved.
-/*
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.//
-*/
-// Notes for version 1.1:
-//  1. Tiny data compression integrates several compression modes: fixed bit, text mode, single value, string mode, and 7-bit encoding and decoding. td64 returns the number of compressed bytes or 0 if compression failed. Values are returned only if compression succeeds. Decoding of the td64 values requires the caller to supply the number of original bytes.
-
 #include "td64.h"
 
 // fixed bit compression (fbc): for the number of uniques in input, the minimum number of input values for 25% compression
@@ -896,6 +879,8 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     unsigned char val256[256]={0}; // init characters found to 0
     const uint32_t uniqueLimit=uniqueLimits25[nValues]; // if exceeded, return uncompressible by fixed bit coding
     const uint32_t nValsInitLoop=(nValues*5/16)+1;
+    // save uniques for use after check for text mode
+    unsigned char saveUniques[MAX_TD64_BYTES];
 
     // process enough input vals to eliminate most random data and to check for text mode
     // for fixed bit coding find and output the uniques starting at outVal[1]
@@ -912,31 +897,11 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         {
             // first occurrence of value, for fixed bit coding:
             uniqueOccurrence[inVal] = nUniqueVals; // save occurrence count for this unique
-            outVals[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
+            saveUniques[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
             highBitCheck |= inVal; // keep watch on high bit of unique values
         }
     }
-    if (nUniqueVals >= uniqueLimit / 2)
-    {
-        // check text mode validity as it's not considered after this
-        // text mode will have 3/4 text values, but for this case, use .5
-        // because this number of values will compress for standard text data.
-        // encodeTextMode verifies compression occurs
-        const uint32_t minTextChars=nValsInitLoop / 2 + 1;
-        if (predefinedTextCharCnt > minTextChars)
-        {
-            // save uniques for text mode failure
-            unsigned char saveUniques[nValsInitLoop];
-            memcpy(saveUniques, outVals+1, nUniqueVals);
-            
-            // encode in text mode if 12% compression achieved
-            uint32_t retBits=encodeTextMode(inVals, outVals, nValues, nValues*7);
-            if (retBits)
-                return retBits;
-            memcpy(outVals+1, saveUniques, nUniqueVals); // restore uniques
-        }
-    }
-    if (nUniqueVals > uniqueLimit+(betterCompression ? 1 : 0))
+    if (nUniqueVals > uniqueLimit+1)
     {
         // supported unique values exceeded
         if ((highBitCheck & 0x80) == 0)
@@ -950,6 +915,20 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         }
         return 0; // too many uniques to compress with fixed bit coding, random data fails here
     }
+    if (nUniqueVals >= uniqueLimit / 2)
+    {
+        // check text mode validity as it's not considered after this
+        // standard text will have 3/4 text values, but for this case, use .5 because this number of values will compress for standard text data.
+        // encodeTextMode verifies compression occurs
+        const uint32_t minTextChars=nValsInitLoop / 2 + 1;
+        if (predefinedTextCharCnt > minTextChars)
+        {
+            // encode in text mode if 12% compression achieved
+            uint32_t retBits=encodeTextMode(inVals, outVals, nValues, nValues*7);
+            if (retBits)
+                return retBits;
+        }
+    }
     // continue fixed bit loop with checks for high bit set and repeat counts
     // look for minimum count to validate single value mode
     const uint32_t minRepeatsSingleValueMode=nValues<16 ? nValues/2 : (unsigned char)nValues/4+1;
@@ -961,7 +940,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         {
             // first occurrence of value, for fixed bit coding:
             uniqueOccurrence[inVal] = nUniqueVals; // save occurrence count for this unique
-            outVals[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
+            saveUniques[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
             highBitCheck |= inVal;
         }
         else if (val256[inVal] >= minRepeatsSingleValueMode)
@@ -980,7 +959,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             {
                 // first occurrence of value, for fixed bit coding:
                 uniqueOccurrence[inVal] = nUniqueVals; // save occurrence count for this unique
-                outVals[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
+                saveUniques[++nUniqueVals] = (unsigned char)inVal; // store unique starting at second byte
                 highBitCheck |= inVal;
             }
         }
@@ -999,6 +978,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             uint32_t earlyExit=(highBitCheck & 0x80) == 0; // perform early exit only if 7-bit mode works
             if (betterCompression)
                 earlyExit = 0; // always check string mode
+            memcpy(outVals, saveUniques, nUniqueVals+1); // uniques to outVals starting in second byte
             if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, earlyExit, nValues*7)))
                 return retBits;
         }
@@ -1021,6 +1001,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     }
     
     // process fixed bit coding
+    memcpy(outVals, saveUniques, nUniqueVals+1); // uniques to outVals starting in second byte
     uint32_t i;
     uint32_t nextOut;
     uint32_t encodingByte;

@@ -3,9 +3,7 @@
 //  tiny data compression of 1 to 512 bytes based on td64
 //  version 1.1
 //
-//  512 bytes is where standard compression algorithms start
-//  to perform well. td512 fills the gap in compression for data sets
-//  up to 512 bytes.
+//  td512 uses td64 to compress 6 to 512 bytes. 1 to 5 values are output without compression. td512 outputs all data necessary to decode the original values with td512d.
 //
 //  Created by Stevan Leonard on 10/30/21.
 //  Copyright © 2021 L. Stevan Leonard. All rights reserved.
@@ -23,8 +21,6 @@
  You should have received a copy of the GNU General Public License
  along with this program.  If not, see <https://www.gnu.org/licenses/>.//
  */
-// Notes for version 1.1:
-//  1. td512 uses td64 to compress 6 to 512 bytes. 1 to 5 values are output without compression. td512 outputs all data necessary to decode the original values with td512d.
 
 #include "td64.h"
 #include "string.h"

@@ -1,11 +1,9 @@
 # tiny-data-compression
 High-speed lossless tiny data compression of 1 to 512 bytes
 
-td512 filename [betterCompression [loopCount]]
+td512 filename [loopCount]
    
 	filename is the name of the file to compress. The compressed output is written to filename.td512 and the decompressed output to filename.td512d.
-	
-	betterCompression (default 0) is 0 for fastest run or non-zero for better compression.
 	
 	loopCount (default 1) is the loop count to use for performance testing. Also see BENCHMARK_LOOP_COUNT macro in main.c.
 

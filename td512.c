@@ -24,7 +24,7 @@
 
 #include "td64.h"
 #include "string.h"
-int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t betterCompression)
+int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 {
     // set initial bits according to number of values
     //  0 1 to 64 values plus 1 pass/fail
@@ -47,7 +47,7 @@ int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nVal
             memcpy(outVals+1, inVals, nValues);
             return (int32_t)nValues + 1;
         }
-        if ((retBits=td64(inVals, outVals+1, nValues, betterCompression)) < 0)
+        if ((retBits=td64(inVals, outVals+1, nValues)) < 0)
             return retBits; // error occurred
         if (retBits == 0)
         {
@@ -78,7 +78,7 @@ int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nVal
     while (nBytesRemaining >= 6)
     {
         nBlockBytes = nBytesRemaining <=64 ? nBytesRemaining : 64;
-        if ((retBits=td64(inVals+inputOffset, outVals+outputOffset, nBlockBytes, betterCompression)) < 0)
+        if ((retBits=td64(inVals+inputOffset, outVals+outputOffset, nBlockBytes)) < 0)
             return retBits; // error occurred
         if (retBits == 0)
         {

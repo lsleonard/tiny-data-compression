@@ -33,7 +33,7 @@
 #include <assert.h>
 
 #define MAX_TD64_BYTES 64  // max input vals supported
-#define MIN_TD64_BYTES 2  // min input vals supported
+#define MIN_TD64_BYTES 1  // min input vals supported
 #define MAX_UNIQUES 16 // max uniques supported in input
 #define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode

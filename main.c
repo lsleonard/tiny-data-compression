@@ -25,7 +25,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.//
 */
 #include "td512.h" // td512 functions
-#include "test_td512.h"
 
 #include <stdio.h>
 #include <stdlib.h>

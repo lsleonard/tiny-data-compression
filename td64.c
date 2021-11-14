@@ -1,6 +1,6 @@
 //
 //  td64.c
-//  tiny data compression of 2 to 64 bytes based on td64
+//  tiny data compression of 1 to 64 bytes based on td64
 //  version 1.1
 //
 //  Created by Stevan Leonard on 10/29/21.
@@ -67,13 +67,14 @@ const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 // -----------------------------------------------------------------------------------
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 // -----------------------------------------------------------------------------------
-// Compress 2 to 5 values with 1 or 2 unique values
+// Compress 1 to 5 values
 // Management of whether compressible and number of input values must be maintained
 //    by caller. Decdode requires number of input values and only accepts compressed data.
 // Decode first byte:
 // 01 = single unique, followed by low 6 bits of input then high two bits in second byte
 // 11 = text mode characters, followed by a 4-bit character reference for each input value; all values must be one of the 16 textChars
 // 0 = encoding by number of values:
+//    1 byte: text mode
 //    2 bytes: two unique nibbles
 //    3 bytes: two unique nibbles
 //    4 or 5 bytes: two uniques
@@ -85,6 +86,18 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
 {
     switch (nValues)
     {
+        case 1:
+        {
+            // text mode encoding for 1 byte
+            const uint32_t ival1=(unsigned char)inVals[0];
+            if (predefinedTextChars[ival1])
+            {
+                // output 0 in first bit followed by encoding in next four
+                outVals[0] = (unsigned char)textEncoding[ival1] << 1;
+                return 5;
+            }
+            return 0;
+        }
         case 2:
         {
             const uint32_t ival1=(unsigned char)inVals[0];
@@ -306,12 +319,13 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
 // -----------------------------------------------------------------------------------
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 // -----------------------------------------------------------------------------------
-// Decode 2 to 5 values encoded by td5.
+// Decode 1 to 5 values encoded by td5.
 // Decode first byte:
 // 01 = single unique, followed by low 6 bits of input; otherwise, high two bits in second byte
 // 11 = text encoding: replace 4-bit text index by corresponding char
 //      2 to 4 values requires all values text, 5 chars can have final char non-text, indicated by 0 or 1 bit following 4 text indexes
 // 0 = encoding by number of values:
+//    1 byte: text mode
 //    2 bytes: two nibbles the same
 //    3 bytes: single unique
 //    4 or 5 bytes: two uniques
@@ -336,6 +350,13 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     const uint32_t secondByte = (unsigned char)inVals[1];
     switch (nOriginalValues)
     {
+        case 1:
+        {
+            // text mode encoding for 1 byte
+            outVals[0] = (unsigned char)textChars[(firstByte>>1) & 0xf];
+            *bytesProcessed = 1;
+            return 1;
+        }
         // special encoding for 2 to 5 bytes
         case 2:
         {
@@ -875,7 +896,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         return td5(inVals, outVals, nValues);
     
     if (nValues > MAX_TD64_BYTES)
-        return -1; // only values 2 to 64 supported
+        return -1; // only values 1 to 64 supported
     
     uint32_t betterCompression=1; // under development--faster when disabled
     uint32_t highBitCheck=0;
@@ -1591,8 +1612,8 @@ int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_
 // -----------------------------------------------------------------------------------
 // fixed bit decoding requires number of original values and encoded bytes
 // uncompressed data is not acceppted
-// 2 to 16 unique values were encoded for 2 to 64 input values.
-// 2 to 5 input values are handled separately.
+// encoding for 1 to 64 input values.
+// 1 to 5 input values are handled separately.
 // inVals   compressed data with fewer bits than in original values
 // outVals  decompressed data
 // nOriginalalues  number of values in the original input to td64: required input

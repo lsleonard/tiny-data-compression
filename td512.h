@@ -18,9 +18,11 @@
 /*  1. Main program reads a file into memory that is compressed by
     calling td512 repeatedly. When complete, the compressed data is
     written to a file and read for decompression by calling td512d.
-        td512 filename [betterCompression [loopCount]]
-    Input file is required argument 1.
-    Optional argument 2 is loop count (default: 1).
+      td512 filename [loopCount]]
+        filename is required argument 1.
+        loopCount is optional argument 2 (default: 1). Looping is performed over the entire input file.
+ 
+
 */
 
 #ifndef td512_h

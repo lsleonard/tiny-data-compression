@@ -64,9 +64,7 @@ static const uint32_t textEncoding[256]={
 
 const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 
-// -----------------------------------------------------------------------------------
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
-// -----------------------------------------------------------------------------------
 // Compress 1 to 5 values
 // Management of whether compressible and number of input values must be maintained
 //    by caller. Decdode requires number of input values and only accepts compressed data.
@@ -316,9 +314,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
     }
 } // end td5
 
-// -----------------------------------------------------------------------------------
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-// -----------------------------------------------------------------------------------
 // Decode 1 to 5 values encoded by td5.
 // Decode first byte:
 // 01 = single unique, followed by low 6 bits of input; otherwise, high two bits in second byte
@@ -465,9 +461,7 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     }
 } // end td5d
 
-// -----------------------------------------------------------------------------------
 int32_t encodeTextMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t maxBits)
-// -----------------------------------------------------------------------------------
 {
     // if value is predefined, use its index; otherwise, output 8-bit value
     // generate control bit 1 if predefined text char, 0 if 8-bit value
@@ -583,9 +577,7 @@ int32_t encodeTextMode(unsigned char *inVals, unsigned char *outVals, const uint
     return (int32_t)nextOutVal * 8; // round up to full byte
 } // end encodeTextMode
 
-// -----------------------------------------------------------------------------------
 int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, int32_t singleValue)
-// -----------------------------------------------------------------------------------
 {
     // generate control bit 1 if single value, otherwise 0 plus 8-bit value
     unsigned char *pInVal=inVals;
@@ -742,22 +734,23 @@ static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, c
         *nextOutBit -= 8;
         outVals[++(*nextOutIx)] = (unsigned char)bitVal >> (nBits - *nextOutBit);
     }
-    return;
 } // end esmOutputBits
 
 #define STRING_LIMIT 9
 const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
 
-int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t nUniquesIn, const uint32_t *uniqueOccurrence, const uint32_t earlyExit, const uint32_t maxBits)
+int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t nUniquesIn, const uint32_t *uniqueOccurrence, const uint32_t maxBits)
 {
     uint32_t twoValsPos[256]; // set to position+1 of first occurrence of value
     uint32_t nUniques; // first value is always a unique
-    uint32_t nextOutIx;
-    uint32_t nextOutBit;
-    const uint32_t maxBytes=maxBits/8; // compare agains bytes out during loop
+    uint32_t nextOutIx=nUniquesIn + 1; // start of encoding past uniques written from outer loop;
+    uint32_t nextOutBit=1; // first bit indicates 1 or 2 uniques in first two inputs values
+    const uint32_t maxBytes=maxBits/8; // compare against bytes out during loop
+    
+    if (nUniquesIn > 32)
+        return -19;
     
     outVals[0] = 1 | (unsigned char)((nUniquesIn-1)<<3); // indicate string mode in first 3 bits and number uniques - 1 in next 5 bits
-    nextOutIx = nUniquesIn + 1; // start of encoding past uniques written from outer loop
     // output two initial values
     // first unique assumed
     const unsigned char inVal0=inVals[0];
@@ -766,7 +759,6 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         // first two values are the same
         nUniques = 1;
         // output 1 to indicate first unique value repeated
-        nextOutBit = 1;
         outVals[nextOutIx] = 1; // 1=repeat for second value
         twoValsPos[inVal0] = 1;
     }
@@ -775,34 +767,17 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         // second val is a new unique
         nUniques = 2;
         // set up position of 2nd unique
-        nextOutBit = 1;
         outVals[nextOutIx] = 0; // 0=uniques in first two values
         twoValsPos[inVal0] = 1;
         twoValsPos[inVals[1]] = 2;
     }
     uint32_t inPos=2; // start loop after init of first two values
     const uint32_t lastPos=nValues-1;
-    // early exit not currently used
-    // use early exit to determine whether to check at half of values
-    // when 7-bit mode can be used, it's quicker to complete string mode if it does succeed than return early and use 7-bit mode
-    uint32_t halfNvalues;
-    if (earlyExit)
-        halfNvalues = nValues / 2; // used if 7-bit mode works for this data
-    else
-        halfNvalues = nValues;
     uint32_t nextInVal = inVals[2];
     while (inPos < lastPos)
     {
         if (nextOutIx > maxBytes)
             return 0; // already failed compression minimum
-        // early exit not currently used
-/*        if (inPos > halfNvalues)
-        {
-            // this check is reached only if 7-bit mode can be called if string mode fails
-            if ((nextOutIx + ((nextOutIx-nUniquesIn)*2))*8 > maxBits)
-                return 0; // misses some compressible blocks, though compression averages < 20%
-            halfNvalues = nValues; // one-time check
-        }*/
         const uint32_t inVal=nextInVal;
         const uint32_t uoInVal=uniqueOccurrence[inVal];
         nextInVal = inVals[++inPos]; // set up for next input as well as comparison later
@@ -833,24 +808,16 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
             }
             // look for continuation of matching characters
             uint32_t strPos=inPos+1;
-            uint32_t strLimit;
-            if (inPos - tvPos < STRING_LIMIT)
-                strLimit = inPos - tvPos; // don't take string past current input pos
-            else
-                strLimit = STRING_LIMIT;
+            // don't take string past current input pos
+            uint32_t strLimit=(inPos - tvPos < STRING_LIMIT) ? inPos - tvPos : STRING_LIMIT;
             if (nValues-strPos+2 < strLimit)
                 strLimit = nValues - strPos + 2; // don't go past end of input
             tvPos++; // point to 2 past original unique
             uint32_t strCount=1;
-            while(++strCount < strLimit)
+            while(++strCount < strLimit && inVals[strPos] == inVals[tvPos])
             {
-                if (inVals[strPos] == inVals[tvPos])
-                {
-                    strPos++;
-                    tvPos++;
-                }
-                else
-                    break;
+                strPos++;
+                tvPos++;
             }
             // output 11 plus 3 more bits for string length 2 to 9
             esmOutputBits(outVals, 5, 3 | ((strCount-2)<<2), &nextOutIx, &nextOutBit);
@@ -879,9 +846,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     return 0; // not compressible
 } // end encodeStringMode
 
-// -----------------------------------------------------------------------------------
 int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
-// -----------------------------------------------------------------------------------
 // td64: Compress nValues bytes. Return 0 if not compressible (no output bytes),
 //    -1 if error; otherwise, number of bits written to outVals.
 //    Management of whether compressible and number of input values must be maintained
@@ -898,7 +863,6 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     if (nValues > MAX_TD64_BYTES)
         return -1; // only values 1 to 64 supported
     
-    uint32_t betterCompression=1; // under development--faster when disabled
     uint32_t highBitCheck=0;
     uint32_t predefinedTextCharCnt=0; // count of text chars encountered
     uint32_t uniqueOccurrence[256]; // order of occurrence of uniques
@@ -941,6 +905,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             if ((highBitCheck & 0x80) == 0)
                 return encode7bits(inVals, outVals, nValues);
         }
+        outVals[0] = 0; // indicate random data failure
         return 0; // too many uniques to compress with fixed bit coding, random data fails here
     }
     if (nUniqueVals >= uniqueLimit / 2)
@@ -961,7 +926,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     }
     // continue fixed bit loop with checks for high bit set and repeat counts
     // look for minimum count to validate single value mode
-    const uint32_t minRepeatsSingleValueMode=nValues<16 ? nValues/2 : (unsigned char)nValues/4+1;
+    const uint32_t minRepeatsSingleValueMode=nValues<16 ? nValues/2 : nValues/4+1;
     int32_t singleValue=-1; // set to value if min repeats reached
     while (inPos < nValues)
     {
@@ -981,7 +946,8 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     }
     if (nUniqueVals <= uniqueLimit) // confirm unique limit has not been exceeded
     {
-        // continue fixed bit loop with checks for high bit set and repeat counts, but not single value
+        // continue fixed bit loop with checks for high bit set and repeat counts,
+        // but not single value
         while (inPos < nValues)
         {
             const uint32_t inVal=inVals[inPos++];
@@ -1005,15 +971,11 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         {
             // string mode for 32+ values with 32 or fewer uniques
             int32_t retBits;
-            uint32_t earlyExit=(highBitCheck & 0x80) == 0; // perform early exit only if 7-bit mode works
-            if (betterCompression)
-                earlyExit = 0; // always complete string mode
             if (textModeCalled)
                 memcpy(outVals+1, saveUniques, textModeCalled); // restore uniques to outVals starting in second byte
-            uint32_t maxBits = nValues*7;
-            if ((highBitCheck & 0x80) != 0)
-                maxBits += nValues / 2; // set minimum compression to 6%
-            if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, earlyExit, maxBits)))
+            // max bits set to 6% if high bit set, else 12%
+            uint32_t maxBits = ((highBitCheck & 0x80) != 0) ?  nValues*7 + nValues/2 : nValues*7;
+            if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, maxBits)))
                 return retBits;
         }
         if ((highBitCheck & 0x80) == 0)
@@ -1021,10 +983,12 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             // compress in high bit mode
             return encode7bits(inVals, outVals, nValues);
         }
+        outVals[0] = 1; // indicate general failure to compress
         return 0; // unable to compress
     }
-    else if (nUniqueVals > 8)
+    else if (nUniqueVals > 8 && singleValue >= 0)
     {
+        // check for benefit of single value mode when 4-bit fixed bit encoding
         // requires at least 38 input values to have 9 or more uniques
         const uint32_t singleValueOverFixexBitRepeats=nValues/2-nValues/16;
         if (val256[singleValue] >= singleValueOverFixexBitRepeats)
@@ -1233,9 +1197,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     return -6; // unexpected program error
 } // end td64
 
-// -----------------------------------------------------------------------------------
 int32_t decodeTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-// -----------------------------------------------------------------------------------
 {
     uint32_t nextInVal=(nOriginalValues-1)/8+2;
     uint32_t nextOutVal=0;
@@ -1328,9 +1290,7 @@ int32_t decodeTextMode(const unsigned char *inVals, unsigned char *outVals, cons
     return (int32_t)nOriginalValues;
 } // end decodeTextMode
 
-// -----------------------------------------------------------------------------------
 int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-// -----------------------------------------------------------------------------------
 {
     uint32_t nextInVal=(nOriginalValues-1)/8+2;
     uint32_t nextOutVal=0;
@@ -1411,7 +1371,7 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
     }
     *bytesProcessed = nextInVal;
     return (int32_t)nOriginalValues;
-} // end decodeTextMode
+} // end decodeSingleValueMode
 
 int32_t decode7bits(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 {
@@ -1496,7 +1456,6 @@ static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsT
     *bitPos -= 8;
     *theBits |= (inVals[++(*thisInVal)]) << (nBitsToGet-*bitPos);
     *theBits &= bitMask[nBitsToGet];
-    return;
 } // end dsmGetBits
 
 int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
@@ -1607,10 +1566,8 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     return (int32_t)nOriginalValues;
 } // end decodeStringMode
 
-// -----------------------------------------------------------------------------------
 int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-// -----------------------------------------------------------------------------------
-// fixed bit decoding requires number of original values and encoded bytes
+// decoding requires number of original values and encoded bytes
 // uncompressed data is not acceppted
 // encoding for 1 to 64 input values.
 // 1 to 5 input values are handled separately.
@@ -1630,7 +1587,6 @@ int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_
     if ((firstByte & 7) == 0x01)
     {
         // string mode
-/*        return decodeTwoValueMode(inVals, outVals, nOriginalValues, bytesProcessed);*/
         return decodeStringMode(inVals, outVals, nOriginalValues, bytesProcessed);
     }
     if ((firstByte & 7) == 0x03)

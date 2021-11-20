@@ -133,9 +133,9 @@ int main(int argc, char* argv[])
         loopCnt = 1;
     }
 #ifdef BENCHMARK_LOOP_COUNT // // special loop count for benchmarking
-    loopCnt = 20000000 / len;
-    loopCnt = (loopCnt < 10) ? 10 : loopCnt;
-    loopCnt = (loopCnt > 1000) ? 1000 : loopCnt;
+    loopCnt = 100000000 / len;
+    loopCnt = (loopCnt < 20) ? 20 : loopCnt;
+    loopCnt = (loopCnt > 2000) ? 2000 : loopCnt;
 #endif
     loopNum = 0;
     printf("   loop count=%d\n", loopCnt);

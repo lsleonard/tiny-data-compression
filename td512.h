@@ -1,4 +1,5 @@
-// td512.h
+//  td512.h
+//  tiny data compression of 1 to 512 bytes based on td64
 /*
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -18,9 +19,8 @@
     calling td512 repeatedly. When complete, the compressed data is
     written to a file and read for decompression by calling td512d.
         td512 filename [betterCompression [loopCount]]
-    Input file is required argument 1. Optional argument 2 is 0
-    (default: faster compression) or 1 (better compression), and
-    argument 3 is loop count (default: 1).
+    Input file is required argument 1.
+    Optional argument 2 is loop count (default: 1).
 */
 
 #ifndef td512_h

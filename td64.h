@@ -19,9 +19,9 @@
 /*  1. Tiny data compression integrates several compression modes: fixed
     bit, text mode, single value, string mode, and 7-bit encoding and
     decoding. td64 returns the number of compressed bytes or 0 if
-    compression failed. Values are returned only if compression
-    succeeds. Decoding of the td64 values requires the caller to supply
-    the number of original bytes.
+    compression failed or a negative value if an error occurred. Values
+    are returned only if compression succeeds. Decoding of the td64 values
+    requires the caller to supply the number of original bytes.
 */
 #ifndef td64_h
 #define td64_h
@@ -37,7 +37,6 @@
 #define MAX_UNIQUES 16 // max uniques supported in input
 #define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
-
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);

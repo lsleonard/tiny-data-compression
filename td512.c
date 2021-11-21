@@ -1,6 +1,6 @@
 //
 //  td512.c
-//  tiny data compression of 1 to 512 bytes based on td64
+//  high-speed lossless tiny data compression of 1 to 512 bytes based on td64
 //  version 1.1
 //
 //  td512 uses td64 to compress 6 to 512 bytes. 1 to 5 values are output without compression. td512 outputs all data necessary to decode the original values with td512d.

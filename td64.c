@@ -1,6 +1,6 @@
 //
 //  td64.c
-//  tiny data compression of 1 to 64 bytes based on td64
+//  high-speed lossless tiny data compression of 1 to 64 bytes based on td64
 //  version 1.1
 //
 //  Created by Stevan Leonard on 10/29/21.
@@ -310,7 +310,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
             return 21;
         }
         default:
-            return -9; // number of values specified not supported (2 to 5 handled here)
+            return -9; // number of values specified not supported (1 to 5 handled here)
     }
 } // end td5
 
@@ -319,7 +319,7 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
 // Decode first byte:
 // 01 = single unique, followed by low 6 bits of input; otherwise, high two bits in second byte
 // 11 = text encoding: replace 4-bit text index by corresponding char
-//      2 to 4 values requires all values text, 5 chars can have final char non-text, indicated by 0 or 1 bit following 4 text indexes
+//      1 to 4 values requires all values text, 5 chars can have final char non-text, indicated by 0 or 1 bit following 4 text indexes
 // 0 = encoding by number of values:
 //    1 byte: text mode
 //    2 bytes: two nibbles the same
@@ -353,7 +353,6 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
             *bytesProcessed = 1;
             return 1;
         }
-        // special encoding for 2 to 5 bytes
         case 2:
         {
             *bytesProcessed = 2;

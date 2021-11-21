@@ -1,5 +1,5 @@
 //  td512.h
-//  tiny data compression of 1 to 512 bytes based on td64
+//  high-speed lossless tiny data compression of 1 to 512 bytes based on td64
 /*
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

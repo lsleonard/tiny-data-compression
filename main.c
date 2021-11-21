@@ -1,6 +1,6 @@
 //
 //  main.c
-//  tiny data compression for 1 to 512 bytes based on td512
+//  high-speed lossless tiny data compression for 1 to 512 bytes based on td512
 //  version 1.1
 //
 //  file-based test bed outputs .td512 file with encoded values

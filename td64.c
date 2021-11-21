@@ -665,7 +665,6 @@ int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, con
     return (int32_t)nextOutVal * 8; // round up to full byte
 } // end encodeSingleValueMode
 
-#define MIN_VALUES_7_BIT_MODE 16
 int32_t encode7bits(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 {
     uint32_t nextOutVal=1;
@@ -895,7 +894,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     if (nUniqueVals > uniqueLimit+1)
     {
         // supported unique values exceeded
-        if ((highBitCheck & 0x80) == 0)
+        if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
         {
             // attempt to compress based on high bit clear across all values
             // confirm remaining values have high bit clear
@@ -972,12 +971,12 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             int32_t retBits;
             if (textModeCalled)
                 memcpy(outVals+1, saveUniques, textModeCalled); // restore uniques to outVals starting in second byte
-            // max bits set to 6% if high bit set, else 12%
-            uint32_t maxBits = ((highBitCheck & 0x80) != 0) ?  nValues*7 + nValues/2 : nValues*7;
+            // max bits set to 12% if high bit clear and enough input values, else 6%
+            uint32_t maxBits = ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUE_7_BIT_MODE_6_PERCENT) ?  nValues*7 : nValues*7+nValues/2 ;
             if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, maxBits)))
                 return retBits;
         }
-        if ((highBitCheck & 0x80) == 0)
+        if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
         {
             // compress in high bit mode
             return encode7bits(inVals, outVals, nValues);

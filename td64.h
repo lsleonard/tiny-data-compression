@@ -37,6 +37,8 @@
 #define MAX_UNIQUES 16 // max uniques supported in input
 #define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
+#define MIN_VALUES_7_BIT_MODE 16
+#define MIN_VALUE_7_BIT_MODE_6_PERCENT 24 // min value where 7-bit mode gets 6% compression
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);

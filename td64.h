@@ -15,14 +15,31 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.//
 */
-// Notes for version 1.1:
-/*  1. Tiny data compression integrates several compression modes: fixed
-    bit, text mode, single value, string mode, and 7-bit encoding and
-    decoding. td64 returns the number of compressed bytes or 0 if
-    compression failed or a negative value if an error occurred. Values
-    are returned only if compression succeeds. Decoding of the td64 values
-    requires the caller to supply the number of original bytes.
-*/
+// Notes for version 1.1.0:
+/*
+ 1. Main program reads a file into memory that is compressed by
+    calling td512 repeatedly. When complete, the compressed data is
+    written to a file and read for decompression by calling td512d.
+      td512 filename [loopCount]]
+        filename is required argument 1.
+        loopCount is optional argument 2 (default: 1). Looping is performed over the entire input file.
+ */
+// Notes for version 1.1.1:
+/*
+ 1. Updated some descriptive comments.
+ */
+// Notes for version 1.1.2:
+/*
+ 1. Moved 7-bit mode defines to td64.h because they are used
+    outside of the 7-bit mode.
+ 2. When fewer than minimum values to use 7-bit mode of 16, don't
+    accumulate high bit when reasonable. Main loop keeps this in because
+    time required is minimal.
+ 3. When fewer than 24 input values, but greater than or equal to minimum
+    values of 16 to use 7-bit mode, use 6% as minimum compression for
+    compression modes used prior to 7-bit mode.
+ */
+
 #ifndef td64_h
 #define td64_h
 

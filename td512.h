@@ -38,6 +38,11 @@
     values of 16 to use 7-bit mode, use 6% as minimum compression for
     compression modes used prior to 7-bit mode.
  */
+// Notes for version 1.1.3:
+/*
+ 1. Fixed bugs in td5 and td5d functions.
+ 2. Recognize random data starting at 16 input values.
+ */
 
 #ifndef td512_h
 #define td512_h

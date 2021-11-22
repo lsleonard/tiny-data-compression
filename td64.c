@@ -80,8 +80,9 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
 //   inVals   input data
 //   outVals  compressed data
 //   nValues  number of values to compress
-// returns number of bits compressed, 0 if not compressible, or -1 if error
+// returns number of bits compressed, 0 if not compressible, or negative value if error
 {
+    outVals[0] = 1; // default uncompressed reason is general failure
     switch (nValues)
     {
         case 1:
@@ -221,7 +222,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
             const int32_t ival2=(unsigned char)inVals[1];
             const int32_t ival3=(unsigned char)inVals[2];
             const int32_t ival4=(unsigned char)inVals[3];
-            if (ival1 == ival2 == ival3 == ival4)
+            if (ival1 == ival2 && ival1 == ival3 && ival1 == ival4)
             {
                 if (nValues == 4)
                 {
@@ -230,7 +231,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
                     outVals[1] = (unsigned char)ival1 >> 6;
                     return 10;
                 }
-                else if ((nValues == 5) && (ival1 == inVals[4]))
+                else if (ival1 == inVals[4])
                 {
                     // all 5 values equal
                     outVals[0] = (unsigned char)(ival1 << 2) | 1;
@@ -266,7 +267,7 @@ int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t 
             int32_t otherVal=-1;
             if (ival2 != ival1)
             {
-                otherVal=ival2;
+                otherVal = ival2;
                 outBits |= 2;
             }
             if (ival3 != ival1)
@@ -336,9 +337,9 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     if ((firstByte & 3) == 1)
     {
         // process single unique
-        uint32_t unique = (firstByte >> 2) | (inVals[1] >> 6);
+        uint32_t unique = (firstByte >> 2) | (inVals[1] << 6);
         memset(outVals, (unsigned char)unique, nOriginalValues);
-        *bytesProcessed = (firstByte & 2) ? 1 : 2;
+        *bytesProcessed = 2;
         return (int)nOriginalValues;
     }
     uint32_t val1;
@@ -410,7 +411,7 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
                 outVals[1] = (unsigned char)textChars[(firstByte>>6) | ((secondByte<<2) & 0xf)];
                 outVals[2] = (unsigned char)textChars[(secondByte>>2) & 0xf];
                 outVals[3] = (unsigned char)textChars[(secondByte>>6) | ((inVals[2]<<2) & 0xf)];
-                return 3;
+                return 4;
             }
             const int32_t thirdByte = (unsigned char)inVals[2];
             val1 = (unsigned char)(firstByte >> 4) | (unsigned char)(secondByte << 4);
@@ -435,7 +436,7 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
                 if (thirdByte & 0x4)
                 {
                     // fifth byte is text char
-                    outVals[4] = (unsigned char)(thirdByte >> 3) & 0xf;
+                    outVals[4] = (unsigned char)textChars[(thirdByte >> 3) & 0xf];
                 }
                 else
                 {
@@ -867,7 +868,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     uint32_t nUniqueVals=0; // count of unique vals encountered
     unsigned char val256[256]={0}; // init characters found to 0
     const uint32_t uniqueLimit=uniqueLimits25[nValues]; // if exceeded, return uncompressible by fixed bit coding
-    const uint32_t nValsInitLoop=(nValues*5/16)+1;
+    const uint32_t nValsInitLoop=nValues<24 ? nValues/2+1 : (nValues*5/16)+1; // 1-23 use 1/2 nValues, 24+ use 1/3 nValues
     // save uniques for use after check for text mode
     unsigned char saveUniques[MAX_TD64_BYTES];
     uint32_t textModeCalled=0; // need to restore uniques for some modes after text mode called
@@ -891,9 +892,9 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             highBitCheck |= inVal; // keep watch on high bit of unique values
         }
     }
-    if (nUniqueVals > uniqueLimit+1)
+    if (nUniqueVals > uniqueLimit+1 && nValues >= MIN_VALUES_RECOGNIZE_RANDOM_DATA)
     {
-        // supported unique values exceeded
+        // supported unique values exceeded--skip this for < 16 values
         if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
         {
             // attempt to compress based on high bit clear across all values
@@ -972,7 +973,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             if (textModeCalled)
                 memcpy(outVals+1, saveUniques, textModeCalled); // restore uniques to outVals starting in second byte
             // max bits set to 12% if high bit clear and enough input values, else 6%
-            uint32_t maxBits = ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUE_7_BIT_MODE_6_PERCENT) ?  nValues*7 : nValues*7+nValues/2 ;
+            uint32_t maxBits = ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUE_7_BIT_MODE_12_PERCENT) ?  nValues*7 : nValues*7+nValues/2 ;
             if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, maxBits)))
                 return retBits;
         }

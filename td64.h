@@ -39,7 +39,11 @@
     values of 16 to use 7-bit mode, use 6% as minimum compression for
     compression modes used prior to 7-bit mode.
  */
-
+// Notes for version 1.1.3:
+/*
+ 1. Fixed bugs in td5 and td5d functions.
+ 2. Recognize random data starting at 16 input values.
+ */
 #ifndef td64_h
 #define td64_h
 
@@ -55,7 +59,8 @@
 #define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
 #define MIN_VALUES_7_BIT_MODE 16
-#define MIN_VALUE_7_BIT_MODE_6_PERCENT 24 // min value where 7-bit mode gets 6% compression
+#define MIN_VALUE_7_BIT_MODE_12_PERCENT 24 // min value where 7-bit mode expected to approach 12%, otherwise 6%
+#define MIN_VALUES_RECOGNIZE_RANDOM_DATA 16 // skip check for random data below this number of values
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);

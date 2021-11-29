@@ -46,7 +46,7 @@
  */
 // Notes for version 1.1.4:
 /*
- 1. Added bit text mode that uses variable length encodig bits
+ 1. Added bit text mode that uses variable length encoding bits
     to maximize compression. td5 still uses the fixed bit text mode.
  2. Changed the random data metric to use number values init
     loop * 7/8 + 1 to be threshold for random data.

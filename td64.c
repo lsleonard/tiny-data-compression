@@ -17,10 +17,10 @@ static const uint32_t uniqueLimits25[MAX_TD64_BYTES+1]=
     9,9,9,9, 10,10,10,10, 11,11,11,11, 12,12,12,12, 13,13,13,13, 14,14, 15,15, 16
 };
 
-// text mode with 16 fixed 4-bit character
-#define MAX_PREDEFINED_CHAR_COUNT 16 // text mode: 16 most frequent characters from Morse code
+// text mode with 16 fixed 4-bit characters
+#define MAX_PREDEFINED_CHAR_COUNT 16 // text mode: based on character frequencies from Morse code
 static const uint32_t textChars[MAX_PREDEFINED_CHAR_COUNT]={
-    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 'm', 'g'
+    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 'm', 'f'
 };
 
 // text mode: a one indicates a character from textChars
@@ -31,7 +31,7 @@ static const uint32_t predefinedTextChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1,
+    0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1,
     0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -51,7 +51,7 @@ static const uint32_t textEncoding[256]={
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
-    16, 3, 16, 13, 10, 1, 16, 15, 8, 4, 16, 16, 11, 14, 5, 6,
+    16, 3, 16, 13, 10, 1, 15, 16, 8, 4, 16, 16, 11, 14, 5, 6,
     16, 16, 9, 7, 2, 12, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,

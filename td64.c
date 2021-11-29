@@ -17,12 +17,13 @@ static const uint32_t uniqueLimits25[MAX_TD64_BYTES+1]=
     9,9,9,9, 10,10,10,10, 11,11,11,11, 12,12,12,12, 13,13,13,13, 14,14, 15,15, 16
 };
 
+// text mode with 16 fixed 4-bit character
 #define MAX_PREDEFINED_CHAR_COUNT 16 // text mode: 16 most frequent characters from Morse code
 static const uint32_t textChars[MAX_PREDEFINED_CHAR_COUNT]={
     ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 'm', 'g'
 };
 
-// text mode: a one indicates a character from the most frequent characters based on Morse code set
+// text mode: a one indicates a character from textChars
 static const uint32_t predefinedTextChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -62,7 +63,52 @@ static const uint32_t textEncoding[256]={
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16
 };
 
-const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
+// text bit mode where characters have a variable number of bits
+#define MAX_PREDEFINED_BIT_CHAR_COUNT 23 // bit text mode: most frequent characters from Morse code plus CR and comma
+static const uint32_t bitTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 'm', 'g', 0xA, 'f', ',', 'y', 'w', 'p', 'b'
+};
+
+// text mode: a one indicates a character from the most frequent characters based on Morse code set
+static const uint32_t predefinedBitTextChars[256]={
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, // 0xA
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1,
+    1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+// bit text mode: index to predefined char or 99 if another value
+static const uint32_t bitTextEncoding[256]={
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 16, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+     0, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 18, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99,  3, 22, 13, 10,  1, 17, 15,  8,  4, 99, 99, 11, 14,  5,  6,
+    21, 99,  9,  7,  2, 12, 99, 20, 99, 19, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    };
+
+static const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 // Compress 1 to 5 values
@@ -461,121 +507,67 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     }
 } // end td5d
 
-int32_t encodeTextMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t maxBits)
+static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
 {
-    // if value is predefined, use its index; otherwise, output 8-bit value
-    // generate control bit 1 if predefined text char, 0 if 8-bit value
+    // output 1 to 8 bits
+    outVals[*nextOutIx] |= (unsigned char)(bitVal << *nextOutBit);
+    *nextOutBit += nBits;
+    if (*nextOutBit >= 8)
+    {
+        *nextOutBit -= 8;
+        outVals[++(*nextOutIx)] = (unsigned char)bitVal >> (nBits - *nextOutBit);
+    }
+} // end esmOutputBits
+
+static uint32_t textNBitsTable[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+    3, 3, 4, 4,
+    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+    7, 7, 7, 7
+};
+static uint32_t textBitValTable[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+    1, 3, 7, 15,
+    0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
+    0x1e, 0x3e, 0x5e, 0x7e
+};
+int32_t encodeTextBitMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t maxBytes)
+{
+    // Use these frequency-related bit encodings:
+    // 101       value not in 23 text values, followed by 8-bit value
+    // 011, 001  2 values of highest frequency
+    // x111      2 values of next highest frequency
+    // xxxx0     15 values of medium frequency, except 11110
+    // xx11110   4 values of lowest frequency
     unsigned char *pInVal=inVals;
     unsigned char *pLastInValPlusOne=inVals+nValues;
     uint32_t inVal;
-    uint32_t nextOutVal=(nValues-1)/8+2; // allocate space for control bits in bytes following first
-    uint64_t controlByte=0;
-    uint64_t controlBit=1;
-    uint32_t predefinedTCs=0x07; // two predefined text chars (PTCs), on init, written to outVals[0]: indicates text mode
-    uint32_t predefinedTCnt=2; // indicate whether first PTC is encoded for output
-    uint32_t predefinedTCsOut=0; // write a 0 to outVals[0] when first PTC encountered
+    uint32_t nextOutIx=1;
+    uint32_t nextOutBit=0;
+    uint32_t eVal;
     
+    outVals[0] = 0x7; // indicate text mode
+    outVals[1] = 0; // init first value used by esmOutputBits
     while (pInVal < pLastInValPlusOne)
     {
-        if (textEncoding[(inVal=*(pInVal++))] < 16)
+
+        if ((eVal=bitTextEncoding[(inVal=*(pInVal++))]) < 23)
         {
-            // encode 4-bit predefined index textIndex
-            controlBit <<= 1; // control bit gets 0 for text index
-            if (predefinedTCnt == 2)
-            {
-                // write a 0 to outVals[0] when first PTC encountered
-                outVals[predefinedTCsOut] = (unsigned char)predefinedTCs;
-                predefinedTCsOut = nextOutVal++;
-                predefinedTCs = textEncoding[inVal];
-                predefinedTCnt = 1;
-            }
-            else
-            {
-                predefinedTCs |= textEncoding[inVal] << 4;
-                predefinedTCnt++;
-            }
+            esmOutputBits(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit);
         }
         else
         {
-            // encode 8-bit value
-            // controlByte gets a 1 at this bit position for next undefined value
-            controlByte |= controlBit;
-            controlBit <<= 1;
-            outVals[nextOutVal++] = (unsigned char)inVal;
-            if (nextOutVal*8 > maxBits)
-            {
-                // main verifies only 1/2 of 5/16 of data values are text
-                return 0; // data failed to compress
-            }
+            esmOutputBits(outVals, 3, 0x5, &nextOutIx, &nextOutBit);
+            esmOutputBits(outVals, 8, inVal, &nextOutIx, &nextOutBit); // output 8 bits
+            if (nextOutIx > maxBytes)
+                return 0; // requested compression not met
         }
     }
-    if (nextOutVal*8 > maxBits)
+    if (nextOutIx > maxBytes)
     {
         // main verifies only 1/2 of 5/16 of data values are text
-        return 0; // data failed to compress
+        return 0; // requested compression not met
     }
-
-    // output control bytes for nValues
-    switch ((nValues-1)/8)
-    {
-        case 0:
-            outVals[1] = (unsigned char)controlByte;
-            break;
-        case 1:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            break;
-        case 2:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            break;
-        case 3:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            outVals[4] = (unsigned char)(controlByte>>24);
-            break;
-        case 4:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            outVals[4] = (unsigned char)(controlByte>>24);
-            outVals[5] = (unsigned char)(controlByte>>32);
-            break;
-        case 5:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            outVals[4] = (unsigned char)(controlByte>>24);
-            outVals[5] = (unsigned char)(controlByte>>32);
-            outVals[6] = (unsigned char)(controlByte>>40);
-            break;
-        case 6:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            outVals[4] = (unsigned char)(controlByte>>24);
-            outVals[5] = (unsigned char)(controlByte>>32);
-            outVals[6] = (unsigned char)(controlByte>>40);
-            outVals[7] = (unsigned char)(controlByte>>48);
-            break;
-        case 7:
-            outVals[1] = (unsigned char)controlByte;
-            outVals[2] = (unsigned char)(controlByte>>8);
-            outVals[3] = (unsigned char)(controlByte>>16);
-            outVals[4] = (unsigned char)(controlByte>>24);
-            outVals[5] = (unsigned char)(controlByte>>32);
-            outVals[6] = (unsigned char)(controlByte>>40);
-            outVals[7] = (unsigned char)(controlByte>>48);
-            outVals[8] = (unsigned char)(controlByte>>56);
-            break;
-    }
-    // output last byte of text char encoding
-    outVals[predefinedTCsOut] = (unsigned char)predefinedTCs;
-    
-    return (int32_t)nextOutVal * 8; // round up to full byte
-} // end encodeTextMode
+    return nextOutIx * 8 + nextOutBit;
+} // end encodeTextBitMode
 
 int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, int32_t singleValue)
 {
@@ -723,20 +715,8 @@ int32_t encode7bits(const unsigned char *inVals, unsigned char *outVals, const u
     return (int32_t)nextOutVal*8;
 } // end encode7bits
 
-static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
-{
-    // output 1 to 8 bits
-    outVals[*nextOutIx] |= bitVal << *nextOutBit;
-    *nextOutBit += nBits;
-    if (*nextOutBit >= 8)
-    {
-        *nextOutBit -= 8;
-        outVals[++(*nextOutIx)] = (unsigned char)bitVal >> (nBits - *nextOutBit);
-    }
-} // end esmOutputBits
-
 #define STRING_LIMIT 9
-const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
+static const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
 
 int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t nUniquesIn, const uint32_t *uniqueOccurrence, const uint32_t maxBits)
 {
@@ -750,6 +730,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         return -19;
     
     outVals[0] = 1 | (unsigned char)((nUniquesIn-1)<<3); // indicate string mode in first 3 bits and number uniques - 1 in next 5 bits
+    outVals[nextOutIx] = 0; // init for esmOutputBits
     // output two initial values
     // first unique assumed
     const unsigned char inVal0=inVals[0];
@@ -883,7 +864,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     while (inPos < nValsInitLoop)
     {
         const uint32_t inVal=inVals[inPos++];
-        predefinedTextCharCnt += predefinedTextChars[inVal]; // count text chars for text char mode
+        predefinedTextCharCnt += predefinedBitTextChars[inVal]; // count text chars for bit text char mode
         if (val256[inVal]++ == 0)
         {
             // first occurrence of value, for fixed bit coding:
@@ -892,7 +873,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             highBitCheck |= inVal; // keep watch on high bit of unique values
         }
     }
-    if (nUniqueVals > uniqueLimit+1 && nValues >= MIN_VALUES_RECOGNIZE_RANDOM_DATA)
+    if (nUniqueVals > nValsInitLoop * 7/8 + 1)
     {
         // supported unique values exceeded--skip this for < 16 values
         if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
@@ -918,7 +899,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             textModeCalled = nUniqueVals; // indicate for restore of uniques when used by subsequent mode
             memcpy(saveUniques, outVals+1, nUniqueVals);
             // encode in text mode if 12% compression achieved
-            uint32_t retBits=encodeTextMode(inVals, outVals, nValues, nValues*7);
+            uint32_t retBits=encodeTextBitMode(inVals, outVals, nValues, nValues*7/8);
             if (retBits)
                 return retBits;
         }
@@ -1196,98 +1177,101 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     return -6; // unexpected program error
 } // end td64
 
-int32_t decodeTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-{
-    uint32_t nextInVal=(nOriginalValues-1)/8+2;
-    uint32_t nextOutVal=0;
-    uint64_t controlByte=0;
-    uint64_t controlBit=1;
-    uint32_t predefinedTCs=0;
-    uint32_t predefinedTCnt=1; // 1 = first 4-bit PTC is encoded for output, otherwise no
+static uint32_t dtbmThisInVal; // current input value
 
-    // read in control bits starting from second byte
-    switch (nextInVal-1)
+static inline void dtbmPeakBits(const unsigned char *inVals, const uint32_t nBitsToPeak, uint32_t thisInValIx, uint32_t bitPos, uint32_t *theBits)
+{
+    *theBits = dtbmThisInVal >> bitPos;
+    if ((bitPos += nBitsToPeak) < 8)
     {
-        case 1:
-            controlByte = inVals[1];
-            break;
-        case 2:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            break;
-        case 3:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            break;
-        case 4:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            controlByte |= (uint64_t)inVals[4]<<24;
-            break;
-        case 5:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            controlByte |= (uint64_t)inVals[4]<<24;
-            controlByte |= (uint64_t)inVals[5]<<32;
-            break;
-        case 6:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            controlByte |= (uint64_t)inVals[4]<<24;
-            controlByte |= (uint64_t)inVals[5]<<32;
-            controlByte |= (uint64_t)inVals[6]<<40;
-            break;
-        case 7:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            controlByte |= (uint64_t)inVals[4]<<24;
-            controlByte |= (uint64_t)inVals[5]<<32;
-            controlByte |= (uint64_t)inVals[6]<<40;
-            controlByte |= (uint64_t)inVals[7]<<48;
-            break;
-        case 8:
-            controlByte = inVals[1];
-            controlByte |= (uint64_t)inVals[2]<<8;
-            controlByte |= (uint64_t)inVals[3]<<16;
-            controlByte |= (uint64_t)inVals[4]<<24;
-            controlByte |= (uint64_t)inVals[5]<<32;
-            controlByte |= (uint64_t)inVals[6]<<40;
-            controlByte |= (uint64_t)inVals[7]<<48;
-            controlByte |= (uint64_t)inVals[8]<<56;
-            break;
+        // all bits in current value with bits to spare
+        *theBits &= 0xff >> (8-nBitsToPeak);
+        return;
     }
+    // next input: or in 0 to 7 bits
+    bitPos -= 8;
+    // when 0 bits, shifted past bits to get then anded off
+    *theBits |= inVals[++thisInValIx] << (nBitsToPeak-bitPos);
+    *theBits &= 0xff >> (8-nBitsToPeak);
+} // end dtbmPeakBits
+
+static inline void dtbmSkipBits(const unsigned char *inVals, const uint32_t nBitsToSkip, uint32_t *thisInValIx, uint32_t *bitPos)
+{
+    if ((*bitPos += nBitsToSkip) < 8)
+    {
+        // all bits in current value with bits to spare
+        return;
+    }
+    // next input: or in 0 to 7 bits
+    *bitPos -= 8;
+    // when 0 bits, shifted past bits to get then anded off
+    dtbmThisInVal = inVals[++(*thisInValIx)];
+} // end dtbmSkipBits
+
+static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, uint32_t *theBits)
+{
+    // get 1 to 8 bits from inVals into theBits
+    *theBits = dtbmThisInVal >> (*bitPos);
+    if ((*bitPos += nBitsToGet) < 8)
+    {
+        // all bits in current value with bits to spare
+        *theBits &= 0xff >> (8-nBitsToGet);
+        return;
+    }
+    // next input: or in 0 to 7 bits
+    dtbmThisInVal = inVals[++(*thisInValIx)];
+    *bitPos -= 8;
+    // when 0 bits, shifted past bits to get then anded off
+    *theBits |= dtbmThisInVal << (nBitsToGet-*bitPos);
+    *theBits &= 0xff >> (8-nBitsToGet);
+} // end dtbmGetBits
+
+static uint32_t bitTextCharIx[128]={4,0,5,1,6,0,7,2,8,0,9,0,10,0,11,3,12,0,13,0,14,0,15,0,16,0,17,0,18,0,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,0};
+
+int32_t decodeTextBitMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
+{
+    // Use these frequency-related bit encodings:
+    // 101       value not in 23 text values, followed by 8-bit value
+    // 011, 001  2 values of highest frequency
+    // x111      2 values of next highest frequency
+    // xxxx0     15 values of medium frequency, except 11110
+    // xx11110   4 values of lowest frequency
+    uint32_t nextOutVal=0;
+    uint32_t thisInValIx=1; // start past first info byte
+    uint32_t bitPos=0;
+    uint32_t theBits;
+        
+    dtbmThisInVal = inVals[thisInValIx]; // initialize to first input val to decode
     while (nextOutVal < nOriginalValues)
     {
-        if (controlByte & controlBit)
+        // peak at the next 7 bits to decide what to do
+        dtbmPeakBits(inVals, 7, thisInValIx, bitPos, &theBits);
+        if ((theBits & 7) == 5)
         {
-            // read in and output next 8-bit value
-            outVals[nextOutVal++] = inVals[nextInVal++];
+            // original value, get 8 more bits
+            dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos);
+            dtbmGetBits(inVals, 8, &thisInValIx, &bitPos, &theBits);
+            outVals[nextOutVal++] = (unsigned char)theBits;
         }
         else
         {
-            // use predefined text chars based on 4-bit index
-            if (predefinedTCnt == 1)
-            {
-                predefinedTCs = inVals[nextInVal++];
-                outVals[nextOutVal++] = (unsigned char)textChars[(unsigned char)predefinedTCs & 15];
-                predefinedTCnt = 0;
-            }
-            else
-            {
-                outVals[nextOutVal++] = (unsigned char)textChars[predefinedTCs >> 4];
-                predefinedTCnt++;
-            }
+            // text char is one of 23 values encoded in 7 bits
+            // number of bits is
+            // 001 = 3
+            // 011 = 3
+            // x111 = 4
+            // xxxx0 = 5
+            // x11110 = 7
+            uint32_t nBits = 3 + ((theBits & 7) == 7) + (((theBits & 1) == 0)<<1) + (((theBits & 0x1f) == 0x1e)<<1);
+            theBits &= 0xff >> (8-nBits); // reduce the bits to those that apply
+            const uint32_t textOffset=bitTextCharIx[theBits];
+            outVals[nextOutVal++] = (unsigned char)bitTextChars[textOffset];
+            dtbmSkipBits(inVals, nBits, &thisInValIx, &bitPos);
         }
-        controlBit <<= 1;
     }
-    *bytesProcessed = nextInVal;
-    return (int32_t)nOriginalValues;
-} // end decodeTextMode
+    *bytesProcessed = thisInValIx + (bitPos > 0);
+    return nextOutVal;
+} // end decodeTextBitMode
 
 int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 {
@@ -1427,10 +1411,11 @@ int32_t decode7bits(const unsigned char *inVals, unsigned char *outVals, const u
     return (int32_t)nOriginalValues;
 } // end decode7bits
 
-static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInVal, uint32_t *bitPos, int32_t *theBits)
+static uint32_t dsmThisVal;
+static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, int32_t *theBits)
 {
     // get 1 to 9 bits from inVals into theBits
-    *theBits = inVals[*thisInVal] >> (*bitPos);
+    *theBits = dsmThisVal >> *bitPos;
     if ((*bitPos += nBitsToGet) < 8)
     {
         // all bits in current value with bits to spare
@@ -1441,26 +1426,27 @@ static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsT
     {
         // bits to get use remainder of current value
         *bitPos = 0;
-        (*thisInVal)++;
+        dsmThisVal = inVals[++(*thisInValIx)];
         return;
     }
     else if (*bitPos == 16)
     {
-        *theBits |= (inVals[++(*thisInVal)]) << 1; // must be 9 bits
-        (*thisInVal)++;
+        *theBits |= (inVals[++(*thisInValIx)]) << 1; // must be 9 bits
+        dsmThisVal = inVals[++(*thisInValIx)];
         *bitPos = 0;
         return;
     }
     // bits split between two values with bits left (bitPos > 0)
     *bitPos -= 8;
-    *theBits |= (inVals[++(*thisInVal)]) << (nBitsToGet-*bitPos);
+    dsmThisVal = inVals[++(*thisInValIx)];
+    *theBits |= dsmThisVal << (nBitsToGet-*bitPos);
     *theBits &= bitMask[nBitsToGet];
 } // end dsmGetBits
 
 int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 {
     uint32_t nextOutVal;
-    uint32_t thisInVal;
+    uint32_t thisInValIx;
     uint32_t bitPos;
     int32_t theBits;
     uint32_t nUniques;
@@ -1472,9 +1458,9 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     // 11  two or more values of a repeated string with string count and position of first occurrence
     // first value is always the first unique
     outVals[0] = inVals[1]; // unique vals start at second val
-    thisInVal = (inVals[0] >> 3) + 2; // number uniques in bits 1-5
+    thisInValIx = (inVals[0] >> 3) + 2; // number uniques in bits 1-5
     uPos[0] = 0; // unique position for first unique
-    if (inVals[thisInVal] & 1)
+    if (inVals[thisInValIx] & 1)
     {
         // second value matches first
         outVals[1] = outVals[0];
@@ -1491,9 +1477,10 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     }
     nextOutVal=2; // start with third output value
     const uint32_t nOrigMinus1=nOriginalValues-1;
+    dsmThisVal = inVals[thisInValIx]; // init to first input val to decode
     while (nextOutVal < nOrigMinus1)
     {
-        if ((inVals[thisInVal] & (1 << (bitPos))) == 0)
+        if ((dsmThisVal & (1 << bitPos)) == 0)
         {
             // new unique value
             uPos[nUniques] = nextOutVal; // unique position for first unique
@@ -1502,7 +1489,7 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
             {
                 // unique from start of input values
                 outVals[nextOutVal++] = inVals[nUniques];
-                thisInVal++;
+                dsmThisVal = inVals[++thisInValIx];
                 bitPos = 0;
             }
             else
@@ -1516,19 +1503,19 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
             // repeat or string
             if (++bitPos == 8)
             {
-                thisInVal++;
+                dsmThisVal = inVals[++thisInValIx];
                 bitPos = 0;
             }
-            if ((inVals[thisInVal] & (1 << (bitPos))) == 0)
+            if ((dsmThisVal & (1 << (bitPos))) == 0)
             {
                 // repeat: next number of bits, determined by nUniques, indicates repeated value
                 if (++bitPos == 8)
                 {
-                    thisInVal++;
+                    dsmThisVal = inVals[++thisInValIx];
                     bitPos = 0;
                 }
                 uint32_t nUniqueBits = encodingBits[nUniques-1]; // current number uniques determines 1-5 bits used
-                dsmGetBits(inVals, nUniqueBits, &thisInVal, &bitPos, &theBits);
+                dsmGetBits(inVals, nUniqueBits, &thisInValIx, &bitPos, &theBits);
                 outVals[nextOutVal++] = inVals[theBits+1]; // get uniques from start of inVals
             }
             else
@@ -1536,13 +1523,13 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
                 // string: 11 plus string length of 2 to 9 in 3 bits
                 if (++bitPos == 8)
                 {
-                    thisInVal++;
+                    dsmThisVal = inVals[++thisInValIx];
                     bitPos = 0;
                 }
                 // multi-character string: location of values in bits needed to code current pos
 /*                uint32_t nPosBits = encodingBits[nextOutVal];*/
                 uint32_t nPosBits = encodingBits[nUniques-1];
-                dsmGetBits(inVals, 3+nPosBits, &thisInVal, &bitPos, &theBits);
+                dsmGetBits(inVals, 3+nPosBits, &thisInValIx, &bitPos, &theBits);
                 uint32_t stringLen = (uint32_t)(theBits & 7) + 2;
                 assert(stringLen <= STRING_LIMIT);
                 uint32_t stringPos=uPos[(uint32_t)theBits >> 3];
@@ -1554,14 +1541,14 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         }
     }
     if (bitPos > 0)
-        thisInVal++; // inc past partial input value
+        thisInValIx++; // inc past partial input value
     if (nextOutVal == nOrigMinus1)
     {
         // output last byte in input when not ending with a string
         // string at end will catch last byte
-        outVals[nOrigMinus1] = inVals[thisInVal++];
+        outVals[nOrigMinus1] = inVals[thisInValIx++];
     }
-    *bytesProcessed = thisInVal;
+    *bytesProcessed = thisInValIx;
     return (int32_t)nOriginalValues;
 } // end decodeStringMode
 
@@ -1601,7 +1588,7 @@ int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_
     if ((firstByte & 7) == 0x07)
     {
         // text mode using predefined text chars
-        return decodeTextMode(inVals, outVals, nOriginalValues, bytesProcessed);
+        return decodeTextBitMode(inVals, outVals, nOriginalValues, bytesProcessed);
     }
     
     // first bit of first byte 0: fixed bit coding

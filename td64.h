@@ -44,6 +44,15 @@
  1. Fixed bugs in td5 and td5d functions.
  2. Recognize random data starting at 16 input values.
  */
+// Notes for version 1.1.4:
+/*
+ 1. Added bit text mode that uses variable length encodig bits
+    to maximize compression. td5 still uses the fixed bit text mode.
+ 2. Changed the random data metric to use number values init
+    loop * 7/8 + 1 to be threshold for random data.
+ 3. Implemented a static global for decoding bit text mode and
+    string mode to limit reads of input values.
+ */
 #ifndef td64_h
 #define td64_h
 
@@ -60,7 +69,6 @@
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
 #define MIN_VALUES_7_BIT_MODE 16
 #define MIN_VALUE_7_BIT_MODE_12_PERCENT 24 // min value where 7-bit mode expected to approach 12%, otherwise 6%
-#define MIN_VALUES_RECOGNIZE_RANDOM_DATA 16 // skip check for random data below this number of values
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);

@@ -43,7 +43,15 @@
  1. Fixed bugs in td5 and td5d functions.
  2. Recognize random data starting at 16 input values.
  */
-
+// Notes for version 1.1.4:
+/*
+ 1. Added bit text mode that uses variable length encodig bits
+    to maximize compression. td5 still uses the fixed bit text mode.
+ 2. Changed the random data metric to use number values init
+    loop * 7/8 + 1 to be threshold for random data.
+ 3. Implemented a static global for decoding bit text mode and
+    string mode to limit reads of input values.
+*/
 #ifndef td512_h
 #define td512_h
 

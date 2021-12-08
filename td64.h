@@ -53,6 +53,20 @@
  3. Implemented a static global for decoding bit text mode and
     string mode to limit reads of input values.
  */
+// Notes for version 1.1.5
+/*
+ 1. Added adaptive text mode that looks for occurrences of characters
+    that are common to a particular data type when fewer than 3/4 of
+    the input values are matched by a predefined character. Defined
+    XML and HTML based on '<', '>', '/' and '"'. Defined C or other
+    code files based on '*', '=', ';' and '\t'. Eight characters
+    common to the text type are defined in the last 8 characters of
+    the characters encoded.
+ 2. Added compression of high bit in unique characters in string mode
+    when the high bit is 0 for all values.
+ 3. Set the initial loop in td64 to 7/16 of input values for 24 or
+    more inputs. This provides a better result for adaptive text mode.
+ */
 #ifndef td64_h
 #define td64_h
 
@@ -62,6 +76,7 @@
 #define NDEBUG // disable asserts
 #include <assert.h>
 
+#define TD64_VERSION "v1.1.5"
 #define MAX_TD64_BYTES 64  // max input vals supported
 #define MIN_TD64_BYTES 1  // min input vals supported
 #define MAX_UNIQUES 16 // max uniques supported in input
@@ -69,6 +84,7 @@
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
 #define MIN_VALUES_7_BIT_MODE 16
 #define MIN_VALUE_7_BIT_MODE_12_PERCENT 24 // min value where 7-bit mode expected to approach 12%, otherwise 6%
+//#define TD64_TEST_MODE // enable this macro to collect some statistics with variables g_td64...
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);

@@ -22,7 +22,7 @@
  along with this program.  If not, see <https://www.gnu.org/licenses/>.//
  */
 
-#include "td64.h"
+#include "td512.h"
 #include "string.h"
 int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 {
@@ -108,7 +108,6 @@ int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nVal
         // pass/fail bit is 0
         memcpy(outVals+outputOffset, inVals+inputOffset, nBytesRemaining);
         retBytes += nBytesRemaining;
-        nBytesRemaining = 0;
     }
     
     if (nValues <= 320)

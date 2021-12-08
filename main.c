@@ -88,7 +88,7 @@ int main(int argc, char* argv[])
     uint32_t dstBlockOffset;
     int loopNum;
     int loopCnt; // argv[4] option: default is 1
-    printf("tiny data compression td512 v1.1\n");
+    printf("tiny data compression td512 %s\n", TD64_VERSION);
 #ifdef TEST_TD512
     int32_t retVal;
     if ((retVal=test_td512_1to512()) != 0) // do check of 1 to 512 values
@@ -142,7 +142,6 @@ int main(int argc, char* argv[])
 
 COMPRESS_LOOP:
     nBytesRemaining=(int32_t)len;
-    nCompressedBytes=0;
     totalCompressedBytes=0;
     srcBlockOffset=0;
     dstBlockOffset=0;

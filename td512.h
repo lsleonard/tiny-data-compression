@@ -52,9 +52,24 @@
  3. Implemented a static global for decoding bit text mode and
     string mode to limit reads of input values.
 */
+// Notes for version 1.1.5
+/*
+ 1. Added adaptive text mode that looks for occurrences of characters
+    that are common to a particular data type when fewer than 3/4 of
+    the input values are matched by a predefined character. Defined
+    XML and HTML based on '<', '>', '/' and '"'. Defined C or other
+    code files based on '*', '=', ';' and '\t'. Eight characters
+    common to the text type are defined in the last 8 characters of
+    the characters encoded.
+ 2. Added compression of high bit in unique characters in string mode
+    when the high bit is 0 for all values.
+ 3. Set the initial loop in td64 to 7/16 of input values for 24 or
+    more inputs. This provides a better result for adaptive text mode.
+ */
 #ifndef td512_h
 #define td512_h
 
+#include "td64.h"
 #include <unistd.h>
 
 int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);

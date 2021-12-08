@@ -66,7 +66,6 @@
     when the high bit is 0 for all values.
  3. Set the initial loop in td64 to 7/16 of input values for 24 or
     more inputs. This provides a better result for adaptive text mode.
- 4. For string mode, added compression of unique values using 7-bit mode.
  */
 #ifndef td64_h
 #define td64_h

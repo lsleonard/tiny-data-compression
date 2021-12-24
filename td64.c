@@ -6,6 +6,7 @@
 //  Created by Stevan Leonard on 10/29/21.
 //  Copyright © 2021 L. Stevan Leonard. All rights reserved.
 #include "td64.h"
+#include "td64_internal.h"
 
 #ifdef TD64_TEST_MODE
 // these globals can be used to collect info
@@ -32,12 +33,12 @@ static const uint32_t textChars[MAX_PREDEFINED_CHAR_COUNT]={
     ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 'm', 'f'
 };
 
-// text mode: a one indicates a character from textChars plus '<' and '>'
+// text mode: a one indicates a character from textChars
 static const uint32_t predefinedTextChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1,
@@ -143,7 +144,6 @@ static uint32_t adaptiveTextEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99
     };
-static const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 // Compress 1 to 5 values
@@ -542,61 +542,6 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     }
 } // end td5d
 
-static int32_t encode7bitsInternal(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
-{
-    // for internal use: output 7 bytes for each 8-byte group, then remaining bytes
-    uint32_t nextOutVal=0;
-    uint32_t nextInVal=0;
-    uint32_t val1;
-    uint32_t val2;
-    
-    // process groups of 8 bytes to output 7 bytes
-    while (nextInVal + 7 < nValues)
-    {
-        // copy groups of 8 7-bit vals into 7 bytes
-        val1 = inVals[nextInVal++];
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(val1 | (val2 << 7));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val2 >> 1) | (val1 << 6));
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val1 >> 2) | (val2 << 5));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val2 >> 3) | (val1 << 4));
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val1 >> 4) | (val2 << 3));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val2 >> 5) | (val1 << 2));
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)((val1 >> 6) | (val2 << 1));
-    }
-    while (nextInVal < nValues)
-    {
-        // output final values as full bytes because no bytes saved, only bits
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextInVal == nValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-            break;
-    }
-    return (int32_t)nextOutVal;
-} // end encode7bitsInternal
-
 static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
 {
     // output 1 to 8 bits
@@ -714,6 +659,8 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
     unsigned char saveUniques[MAX_TD64_BYTES];
     const uint32_t *textEncodingArray=extendedTextEncoding;
 
+    // save uniques for possible failure
+    memcpy(saveUniques, outVals+1, nUniquesIn);
     if (predefinedTextCharCnt > nValues * 3/4)
     {
         // use standard text table, accept compression even if maxBytes exeeded
@@ -736,14 +683,17 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
                 g_td64Text8bitCount++;
 #endif
             }
+            if (nextOutIx > maxBytes)
+            {
+                // reset uniques in output array
+                memcpy(outVals+1, saveUniques, nUniquesIn);
+                return 0; // requested compression not met
+            }
         }
-        assert(nextOutIx < nValues);
     }
     else
     {
         // use fixed adaptive text mode
-        // save uniques for possible failure
-        memcpy(saveUniques, outVals+1, nUniquesIn);
         adaptiveUsed = setAdaptiveChars(val256, outVals, nValues, &textEncodingArray);
         outVals[1] = 0; // init first value used by esmOutputBits
         while (pInVal < pLastInValPlusOne)
@@ -765,16 +715,12 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
             }
             if (nextOutIx > maxBytes)
             {
-                break;
+                // main verifies only 1/2 of data values looked at are text
+                resetAdaptiveChars(adaptiveUsed); // prep for next time
+                // reset uniques in output array
+                memcpy(outVals+1, saveUniques, nUniquesIn);
+                return 0; // requested compression not met
             }
-        }
-        resetAdaptiveChars(adaptiveUsed);
-        if (nextOutIx > maxBytes)
-        {
-            // main verifies only 1/2 of data values looked at are text
-            // reset uniques in output array
-            memcpy(outVals+1, saveUniques, nUniquesIn);
-            return 0; // requested compression not met
         }
     }
     return nextOutIx * 8 + nextOutBit;
@@ -927,7 +873,6 @@ int32_t encode7bits(const unsigned char *inVals, unsigned char *outVals, const u
 } // end encode7bits
 
 #define STRING_LIMIT 9
-static const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
 
 int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const uint32_t nUniquesIn, const uint32_t *uniqueOccurrence, const uint32_t highBitClear, const uint32_t maxBits)
 {
@@ -1640,65 +1585,6 @@ int32_t decode7bits(const unsigned char *inVals, unsigned char *outVals, const u
     *bytesProcessed = nextInVal;
     return (int32_t)nOriginalValues;
 } // end decode7bits
-
-static int32_t decode7bitsInternal(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
-{
-    // decode values directly into outVals
-    uint32_t nextOutVal=0;
-    uint32_t nextInVal=0;
-    uint32_t val1;
-    uint32_t val2;
-    
-    if (nOriginalValues < 8)
-        return 0; // must have at least one group of 8 bytes to compress
-    
-    // process groups of 8 bytes to output 7 bytes
-    while (nextOutVal + 7 < nOriginalValues)
-    {
-        // move groups of 7-bit vals into 8 bytes
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(val1 & 127);
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val2 << 1) & 127) | (val1 >> 7));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val1 << 2) & 127) | (val2 >> 6));
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val2 << 3) & 127) | (val1 >> 5));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val1 << 4) & 127) | (val2 >> 4));
-        val2 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val2 << 5) & 127) | (val1 >> 3));
-        val1 = inVals[nextInVal++];
-        outVals[nextOutVal++] = (unsigned char)(((val1 << 6) & 127) | (val2 >> 2));
-        outVals[nextOutVal++] = (unsigned char)val1 >> 1;
-    }
-    while (nextOutVal < nOriginalValues)
-    {
-        // output final values as full bytes because no bytes saved, only bits
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-        if (nextOutVal == nOriginalValues)
-            break;
-        outVals[nextOutVal++] = inVals[nextInVal++];
-            break;
-    }
-    *bytesProcessed = nextInVal;
-    return (int32_t)nOriginalValues;
-} // end decode7bitsInternal
 
 static uint32_t dsmThisVal;
 static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, int32_t *theBits)

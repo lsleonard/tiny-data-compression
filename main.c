@@ -88,7 +88,9 @@ int main(int argc, char* argv[])
     uint32_t dstBlockOffset;
     int loopNum;
     int loopCnt; // argv[4] option: default is 1
-    printf("tiny data compression td512 %s\n", TD64_VERSION);
+    uint32_t blockSize=512; // block size to use when iterating through file
+    
+    printf("tiny data compression td512 %s   block size: %d\n", TD64_VERSION, blockSize);
 #ifdef TEST_TD512
     int32_t retVal;
     if ((retVal=test_td512_1to512()) != 0) // do check of 1 to 512 values
@@ -121,7 +123,7 @@ int main(int argc, char* argv[])
     fclose(ifile);
     
     // allocate "uncompressed size" + 3 bytes per block for the destination buffer
-    dst = (unsigned char*) malloc(len + 3 * (len / 512 + 1));
+    dst = (unsigned char*) malloc(len + 3 * (len / blockSize + 1));
     if (argc >= 3)
     {
         sscanf(argv[2], "%d", &loopCnt);
@@ -139,7 +141,7 @@ int main(int argc, char* argv[])
 #endif
     loopNum = 0;
     printf("   loop count=%d\n", loopCnt);
-
+    
 COMPRESS_LOOP:
     nBytesRemaining=(int32_t)len;
     totalCompressedBytes=0;
@@ -150,7 +152,7 @@ COMPRESS_LOOP:
     begin = clock();
     while (nBytesRemaining > 0)
     {
-        uint32_t nBlockBytes=(uint32_t)nBytesRemaining>=512 ? 512 : (uint32_t)nBytesRemaining;
+        uint32_t nBlockBytes=(uint32_t)nBytesRemaining>=blockSize ? blockSize : (uint32_t)nBytesRemaining;
             nCompressedBytes = td512(src+srcBlockOffset, dst+dstBlockOffset, nBlockBytes);
         if (nCompressedBytes < 0)
             exit(nCompressedBytes); // error occurred

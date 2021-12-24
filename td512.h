@@ -70,6 +70,7 @@
 #define td512_h
 
 #include "td64.h"
+#include "tdString.h"
 #include <unistd.h>
 
 int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);

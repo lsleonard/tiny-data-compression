@@ -66,6 +66,12 @@
  3. Set the initial loop in td64 to 7/16 of input values for 24 or
     more inputs. This provides a better result for adaptive text mode.
  */
+// Notes for version 1.1.6
+/*
+ 1. Modified random data check and added a later check for random data.
+ 2. Added an early call to single value mode.
+ 3. Updated unused extended string mode to calculate high bit clear during processing and check for overflow as late as possible.
+*/
 #ifndef td512_h
 #define td512_h
 

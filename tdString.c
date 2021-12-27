@@ -24,7 +24,7 @@ static inline void esmOutputBits(unsigned char *outValsT, const uint32_t nBits, 
     }
 } // end esmOutputBits
 
-int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValuesMax, uint32_t *nValuesOut, uint32_t highBitClear)
+int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValuesMax, uint32_t *nValuesOut)
 {
     // encode strings and repeats in input for up to 64 unique values
     // then conclude processing and return if either number uniques
@@ -41,6 +41,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
     uint32_t nextOutBit=0; // start of encoding after first two inputs
     unsigned char outValsT[MAX_STRING_MODE_EXTENDED_VALUES];
     uint32_t maxUniquesExceeded=0;
+    uint32_t highBitClear;
     
     if (nValuesMax > MAX_STRING_MODE_EXTENDED_VALUES)
         return -1;
@@ -50,6 +51,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
     //    first bit is last bit of unique count, second is whether
     //    uniques are compressed
     inVal=inVals[0];
+    highBitClear = inVal;
     outVals[2] = inVal;
     if (inVal == inVals[1])
     {
@@ -76,6 +78,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
         val256[inVal] = 1;
         uniqueOccurrence[inVal] = 0;
         inVal = inVals[1]; // inVal is now second value
+        highBitClear |= inVal;
         outVals[3] = inVal;
         val256[inVal] = 1;
         uniqueOccurrence[inVal] = 1;
@@ -97,7 +100,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
     const uint32_t lastPos=nValuesMax-1;
     while (inPos < lastPos)
     {
-        if (nextOutIx+nUniques > nValuesMax-16)
+        if (nextOutIx+nUniques > nValuesMax-1)
             return 0;
         inVal = inVals[inPos++]; // inPos inc'd to next position
         uint32_t UOinVal=uniqueOccurrence[inVal];
@@ -131,6 +134,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
             // set position of these two vals one past second value
             twoValsPoss[(nUniques<<6) | UOinValsInPosP1] = inPos + 1;
             nUniques++;
+            highBitClear |= inVal;
             // output a 0 to indicate new unique
             if (++nextOutBit == 8)
             {
@@ -222,11 +226,11 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
         outValsT[nextOutIx++] = inVals[lastPos]; // output last input byte
     }
     *nValuesOut = maxUniquesExceeded ? maxUniquesExceeded : nValuesMax;
-    if (nextOutIx + nUniques > *nValuesOut - 16)
+    if (nextOutIx + nUniques > *nValuesOut - 1)
         return 0;
     // use 7-bit encoding on uniques if all high bits set
     int32_t uniqueOffset;
-    if (highBitClear)
+    if ((highBitClear & 0x80) == 0)
     {
         unsigned char compressedUniques[MAX_UNIQUES_EXTENDED_STRING_MODE];
         uniqueOffset = encode7bitsInternal(outVals+2, compressedUniques, nUniques) + 2;

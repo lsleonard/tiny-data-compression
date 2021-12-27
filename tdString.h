@@ -34,6 +34,6 @@ static const uint32_t encodingBits512[512]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,
     9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
     9,9,9,9};
 
-int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValuesMax, uint32_t *nValuesOut, uint32_t highBitClear);
+int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValuesMax, uint32_t *nValuesOut);
 int32_t decodeStringModeExtended(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);
 #endif /* tdString_h */

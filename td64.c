@@ -729,6 +729,7 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
 #endif
             }
         }
+        resetAdaptiveChars(adaptiveUsed); // prep for next time
     }
     return nextOutIx * 8 + nextOutBit;
 } // end encodeAdaptiveTextMode

@@ -17,6 +17,10 @@ uint32_t g_td64MaxStringModeUniquesExceeded=0;
 uint32_t g_td64Text8bitCount=0;
 uint32_t g_td64AdaptiveText8bitCount=0;
 uint32_t g_td64StringBlocks=0;
+double g_td64CompressNonSingleValues=0;
+double g_td64CompressNSVcnt=0;
+uint32_t g_td64CompressNSVblocks=0;
+uint32_t g_td64CompressNSVfailures=0;
 #endif
 
 // fixed bit compression (fbc): for the number of uniques in input, the minimum number of input values for 25% compression
@@ -734,7 +738,7 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
     return nextOutIx * 8 + nextOutBit;
 } // end encodeAdaptiveTextMode
 
-int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, int32_t singleValue)
+int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, int32_t singleValue, const uint32_t compressNSV)
 {
     // generate control bit 1 if single value, otherwise 0 plus 8-bit value
     unsigned char *pInVal=inVals;
@@ -819,7 +823,44 @@ int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, con
             outVals[8] = (unsigned char)(controlByte>>56);
             break;
     }
-    
+    if (compressNSV)
+    {
+        uint32_t firstNonSingle=(nValues-1)/8+3; // skip single value itself
+        uint32_t nNSV=nextOutVal-firstNonSingle+1;
+        if (nNSV >= 16)
+        {
+            unsigned char outTemp[64];
+            int32_t retBits;
+            uint32_t nValuesOut;
+#ifdef TD64_TEST_MODE
+            g_td64CompressNSVcnt += nNSV;
+            g_td64CompressNSVblocks++;
+#endif
+            retBits = encodeStringModeExtended(outVals+firstNonSingle, outTemp, nNSV, &nValuesOut);
+            if (retBits < 16)
+            {
+#ifdef TD64_TEST_MODE
+                g_td64CompressNonSingleValues += nNSV*8; // not enough compression
+                g_td64CompressNSVfailures++;
+#endif
+            }
+            else
+            {
+                // non-string mode values compressed: set bit 4
+                outVals[0] |= 8;
+                outVals[firstNonSingle] = nNSV; // store number non-single values
+                // copy compressed uniques in temp outvals to outvals
+                uint32_t nBytes=retBits/8;
+                if (retBits & 7)
+                    nBytes++;
+                memcpy(outVals+firstNonSingle+1, outTemp, nBytes);
+#ifdef TD64_TEST_MODE
+                g_td64CompressNonSingleValues += retBits;
+#endif
+                return (firstNonSingle+1)*8 + retBits;
+            }
+        }
+    }
     return (int32_t)nextOutVal * 8; // round up to full byte
 } // end encodeSingleValueMode
 
@@ -894,7 +935,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     uint32_t nextOutBit=1; // first bit indicates 1 or 2 uniques in first two input values
     const uint32_t maxBytes=maxBits/8; // compare against bytes out during loop
     
-    if (nUniquesIn > 32 || nUniquesIn <= 16)
+    if (nUniquesIn > 32 || nUniquesIn < MIN_STRING_MODE_UNIQUES)
         return -19;
     // use 7-bit encoding for uniques if all high bits set
     if (highBitClear)
@@ -1002,30 +1043,6 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     return 0; // not compressible
 } // end encodeStringMode
 
-static inline uint32_t getNum2char(const unsigned char *inVals, const uint32_t *uniqueOccurrence, const uint32_t nValues)
-{
-    // unique offsets must be preset from main loop
-    uint32_t n2char=0;
-    uint32_t inPos=1; // first value preset
-    int32_t twoVals[32];
-    uint32_t UOinVal;
-    uint32_t UOnextIn=0; // first value is unique offset 0
-    memset(twoVals, 255, sizeof(twoVals));
-    
-    while (inPos < nValues-1)
-    {
-        UOinVal = UOnextIn;
-        UOnextIn = uniqueOccurrence[inVals[inPos++]];
-        if (UOinVal > 31 || UOnextIn > 31)
-            continue; // only support up to 32 unique values
-        if (twoVals[UOinVal] == -1)
-            twoVals[UOinVal] = UOnextIn;
-        else if (twoVals[UOinVal] == UOnextIn)
-            n2char++;
-    }
-    return n2char;
-} // end getNum2char
-
 int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 // td64: Compress nValues bytes. Return 0 if not compressible (no output bytes),
 //    -1 if error; otherwise, number of bits written to outVals.
@@ -1042,6 +1059,9 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     
     if (nValues > MAX_TD64_BYTES)
         return -1; // only values 1 to 64 supported
+    
+    //uint32_t nValuesOut;
+    //return encodeStringModeExtended(inVals, outVals, nValues, &nValuesOut);
     
     uint32_t highBitCheck=0;
     uint32_t predefinedTextCharCnt=0; // count of text chars encountered
@@ -1122,7 +1142,8 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         // early opportunity for single value mode
         // single value mode is fast and set to get minimum 12% compression for 64 values
         // only single value mode can have more then MAX_STRING_MODE_UNIQUES
-        return encodeSingleValueMode(inVals, outVals, nValues, singleValue);
+        const uint32_t compressNSV=0; // don't compress non-single values when unique limit exceeded
+        return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
     }
     const uint32_t nUniquesRandom=nValues*5/8 < MAX_STRING_MODE_UNIQUES ? nValues*5/8 : MAX_STRING_MODE_UNIQUES;
     if (nUniqueVals > nUniquesRandom)
@@ -1160,10 +1181,9 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         // fixed bit coding failed, try for other compression modes
         if (singleValue >= 0)
         {
-            // second chance for single value mode
-            // single value mode is fast and set to get minimum 12% compression for 64
-            // only single value mode can have more then MAX_STRING_MODE_UNIQUES
-            return encodeSingleValueMode(inVals, outVals, nValues, singleValue);
+            // always choose single value mode first when unique limit exceeded
+            const uint32_t compressNSV=0; // don't compress non-single values when unique limit exceeded
+            return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
         }
         if ((nValues >= MIN_VALUES_STRING_MODE))
         {
@@ -1191,7 +1211,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
                 g_td64FailedStringMode++;
 #endif
 */            }
-            else
+            else if (nUniqueVals >= MIN_STRING_MODE_UNIQUES)
             {
                 // string mode for 32+ values with 17 to 32 uniques
                 // max bits set to 12% if high bit clear and enough input values, else 6%
@@ -1210,7 +1230,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         outVals[0] = 1; // indicate general failure to compress
         return 0; // unable to compress
     }
-    else if (nUniqueVals > 8)
+    else if (nUniqueVals > 4)
     {
         if (singleValue >= 0)
         {
@@ -1218,14 +1238,15 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             // requires at least 38 input values to have 9 or more uniques
             // FUTURE: graduate based on number of uniques versus fixed 31%
             const uint32_t singleValueOverFixexBitRepeats=nValues/2-nValues/16; //
-            if (val256[singleValue] >= singleValueOverFixexBitRepeats)
+            //if (val256[singleValue] >= singleValueOverFixexBitRepeats)
             {
                 // favor single value over fixed 4-bit encoding
-                return encodeSingleValueMode(inVals, outVals, nValues, singleValue);
+                const uint32_t compressNSV=1; // for small numbers of uniques, try to compress non-single values
+                return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
             }
         }
     }
-    // process fixed bit coding
+    // process fixed bit coding inline
     uint32_t i;
     uint32_t nextOut;
     uint32_t encodingByte;
@@ -1532,6 +1553,9 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
     uint64_t controlByte=0;
     uint64_t controlBit=1;
     unsigned char singleValue;
+    const unsigned char *pNSVs;
+    unsigned char uncompressedNSVs[MAX_TD64_BYTES];
+    uint32_t compressedBytesProcessed=0; // when NSVs compressed use for bytesProcessed return value
 
     // read in control bits starting from second byte
     switch (nextInVal-1)
@@ -1590,6 +1614,25 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
             break;
     }
     singleValue = inVals[nextInVal++]; // single value output when control bit is 1
+    if (inVals[0] & 8)
+    {
+        // non-single values were compressed, byte at nextInVal is number NSVs
+        int32_t retBits;
+        uint32_t bytesProcessed;
+        uint32_t nNSVs=inVals[nextInVal];
+        if ((retBits=decodeStringModeExtended(inVals+nextInVal+1, uncompressedNSVs, nNSVs, &bytesProcessed)) <= 0)
+            return -27;
+        assert(retBits == nNSVs);
+        pNSVs = uncompressedNSVs;
+        compressedBytesProcessed = nextInVal + bytesProcessed + 1; // include byte for nNSVs
+        nextInVal = 0; // point to NSVs in local array
+    }
+    else
+    {
+        // NSVs are not compressed, point at input encoding
+        pNSVs = inVals;
+    }
+
     while (nextOutVal < nOriginalValues)
     {
         if (controlByte & controlBit)
@@ -1600,11 +1643,14 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
         else
         {
             // output next value from input
-            outVals[nextOutVal++] = inVals[nextInVal++];
+            outVals[nextOutVal++] = pNSVs[nextInVal++];
         }
         controlBit <<= 1;
     }
-    *bytesProcessed = nextInVal;
+    if (inVals[0] & 8)
+        *bytesProcessed = compressedBytesProcessed;
+    else
+        *bytesProcessed = nextInVal;
     return (int32_t)nOriginalValues;
 } // end decodeSingleValueMode
 

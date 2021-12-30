@@ -9,7 +9,8 @@
 #include "tdString.h"
 #include "td64_internal.h"
 
-#define STRING_LIMIT 17
+#define STRING_LIMIT 9 // for 128+ values set to 17
+#define EXTENDED_STRING_LENGTH_BITS 3 // for 128+ values, use 4
 #define MAX_STRING_MODE_EXTENDED_VALUES 512
 
 static inline void esmOutputBits(unsigned char *outValsT, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
@@ -191,8 +192,8 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
                 strPos++;
                 twoValsPos++;
             }
-            // output 11 plus 4 more bits for string length 2 to 17
-            esmOutputBits(outValsT, 6, 3 | ((strCount-1)<<2), &nextOutIx, &nextOutBit);
+            // output 11 plus string length bits
+            esmOutputBits(outValsT, 2+EXTENDED_STRING_LENGTH_BITS, 3 | ((strCount-1)<<2), &nextOutIx, &nextOutBit);
             // output the position of string
             if (encodingBits512[inPos-1] > 8)
             {
@@ -230,7 +231,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
         return 0;
     // use 7-bit encoding on uniques if all high bits set
     int32_t uniqueOffset;
-    if ((highBitClear & 0x80) == 0)
+    if ((highBitClear & 0x80) == 0 && *nValuesOut >= 16)
     {
         unsigned char compressedUniques[MAX_UNIQUES_EXTENDED_STRING_MODE];
         uniqueOffset = encode7bitsInternal(outVals+2, compressedUniques, nUniques) + 2;
@@ -391,7 +392,7 @@ int32_t decodeStringModeExtended(const unsigned char *inVals, unsigned char *out
                     bitPos = 0;
                 }
                 // multi-character string: length, then location of values in bits needed to code current pos
-                dsmGetBits2(inVals, 4, &thisInVal, &thisVal, &bitPos, &theBits);
+                dsmGetBits2(inVals, EXTENDED_STRING_LENGTH_BITS, &thisInVal, &thisVal, &bitPos, &theBits);
                 uint32_t stringLen = (uint32_t)theBits + 2;
                 assert(stringLen <= STRING_LIMIT);
                 uint32_t nPosBits = encodingBits512[nextOutVal];
@@ -415,3 +416,4 @@ int32_t decodeStringModeExtended(const unsigned char *inVals, unsigned char *out
     *bytesProcessed = thisInVal;
     return (int32_t)nOriginalValues;
 } // end decodeStringModeExtended
+

@@ -72,6 +72,12 @@
  2. Added an early call to single value mode.
  3. Updated unused extended string mode to calculate high bit clear during processing and check for overflow as late as possible.
 */
+// Notes for version 1.1.7
+/*
+ 1. In single value mode, added compression of non-single values. This option is enabled for 5 to unique limit uniques where compression rate is worthwhile.
+ 2. Changed STRING_LIMIT to 9 (3 bits) in extended string mode to get better compression for up to 64 values. This function can be used for 512 values when that change is made to td512, and use STRING_LIMIT of 17 (4 bits).
+ 3. Added some test mode values.
+ */
 #ifndef td512_h
 #define td512_h
 

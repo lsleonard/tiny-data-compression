@@ -73,6 +73,12 @@
  2. Added an early call to single value mode.
  3. Updated unused extended string mode to calculate high bit clear during processing and check for overflow as late as possible.
 */
+// Notes for version 1.1.7
+/*
+ 1. In single value mode, added compression of non-single values. This option is enabled for 5 to unique limit uniques where compression rate is worthwhile.
+ 2. Changed STRING_LIMIT to 9 (3 bits) in extended string mode to get better compression for up to 64 values. This function can be used for 512 values when that change is made to td512, and use STRING_LIMIT of 17 (4 bits).
+ 3. Added some test mode values.
+ */
 #ifndef td64_h
 #define td64_h
 
@@ -82,12 +88,13 @@
 #define NDEBUG // disable asserts
 #include <assert.h>
 
-#define TD64_VERSION "v1.1.6"
+#define TD64_VERSION "v1.1.7"
 #define MAX_TD64_BYTES 64  // max input vals supported
 #define MIN_TD64_BYTES 1  // min input vals supported
 #define MAX_UNIQUES 16 // max uniques supported in input
 #define MAX_STRING_MODE_UNIQUES 32 // max uniques supported by string mode
 #define MIN_VALUES_STRING_MODE 32 // min values to use string mode
+#define MIN_STRING_MODE_UNIQUES 17 // string mode stores unique count excess 16
 #define MIN_VALUES_7_BIT_MODE 16
 #define MIN_VALUE_7_BIT_MODE_12_PERCENT 24 // min value where 7-bit mode expected to approach 12%, otherwise 6%
 //#define TD64_TEST_MODE // enable this macro to collect some statistics with variables g_td64...

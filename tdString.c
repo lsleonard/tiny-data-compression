@@ -115,7 +115,6 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
                 break;
             }
             uniqueOccurrence[inVal] = nUniques;
-            UOinVal = nUniques;
             val256[inVal] = 1;
             if (val256[inVals[inPos]] == 0)
             {

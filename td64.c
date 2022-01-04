@@ -21,6 +21,7 @@ double g_td64CompressNonSingleValues=0;
 double g_td64CompressNSVcnt=0;
 uint32_t g_td64CompressNSVblocks=0;
 uint32_t g_td64CompressNSVfailures=0;
+uint32_t g_td64nNSVcnt=0;
 #endif
 
 // fixed bit compression (fbc): for the number of uniques in input, the minimum number of input values for 25% compression
@@ -835,7 +836,9 @@ int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, con
 #ifdef TD64_TEST_MODE
             g_td64CompressNSVcnt += nNSV;
             g_td64CompressNSVblocks++;
+            g_td64nNSVcnt += nNSV;
 #endif
+            //retBits = td64(outVals+firstNonSingle, outTemp, nNSV);
             retBits = encodeStringModeExtended(outVals+firstNonSingle, outTemp, nNSV, &nValuesOut);
             if (retBits < 16)
             {
@@ -853,11 +856,12 @@ int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, con
                 uint32_t nBytes=retBits/8;
                 if (retBits & 7)
                     nBytes++;
-                memcpy(outVals+firstNonSingle+1, outTemp, nBytes);
+                // don't keep first byte that is 0x7f for extended string mode
+                memcpy(outVals+firstNonSingle+1, outTemp+1, nBytes-1);
 #ifdef TD64_TEST_MODE
-                g_td64CompressNonSingleValues += retBits;
+                g_td64CompressNonSingleValues += retBits-8;
 #endif
-                return (firstNonSingle+1)*8 + retBits;
+                return (firstNonSingle+1)*8 + retBits-8;
             }
         }
     }
@@ -1237,7 +1241,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             // check for benefit of single value mode when 4-bit fixed bit encoding
             // requires at least 38 input values to have 9 or more uniques
             // FUTURE: graduate based on number of uniques versus fixed 31%
-            const uint32_t singleValueOverFixexBitRepeats=nValues/2-nValues/16; //
+            //const uint32_t singleValueOverFixexBitRepeats=nValues/2-nValues/16; //
             //if (val256[singleValue] >= singleValueOverFixexBitRepeats)
             {
                 // favor single value over fixed 4-bit encoding
@@ -1620,7 +1624,8 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
         int32_t retBits;
         uint32_t bytesProcessed;
         uint32_t nNSVs=inVals[nextInVal];
-        if ((retBits=decodeStringModeExtended(inVals+nextInVal+1, uncompressedNSVs, nNSVs, &bytesProcessed)) <= 0)
+        // first byte in encoded extended string mode is 0x7f, which is not stored; value at nextInVal is not referenced
+        if ((retBits=decodeStringModeExtended(inVals+nextInVal, uncompressedNSVs, nNSVs, &bytesProcessed)) <= 0)
             return -27;
         assert(retBits == nNSVs);
         pNSVs = uncompressedNSVs;

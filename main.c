@@ -98,6 +98,7 @@ int main(int argc, char* argv[])
         printf("error from test_td512_1to512=%d\n", retVal);
         return -83;
     }
+    printf("TEST_TD512 passed\n");
 #endif
     if (argc < 2)
     {

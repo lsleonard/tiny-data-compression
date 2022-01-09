@@ -78,6 +78,11 @@
  2. Changed STRING_LIMIT to 9 (3 bits) in extended string mode to get better compression for up to 64 values. This function can be used for 512 values when that change is made to td512, and use STRING_LIMIT of 17 (4 bits).
  3. Added some test mode values.
  */
+// Notes for version 1.1.8
+/*
+ 1. Focus on catching all possible compressible data while handling random data as quickly as possible. Defined two places that catch random data.
+ 2. Replaced '_' with 'w' in XML adaptive characters to address www in URLs
+ */
 #ifndef td512_h
 #define td512_h
 

@@ -80,19 +80,19 @@ static const uint32_t textEncoding[256]={
     16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16
 };
 
-// text bit mode where characters have a variable number of bits
+// adaptive text mode where characters have a variable number of bits
 #define MAX_PREDEFINED_BIT_CHAR_COUNT 23 // bit text mode: most frequent characters from Morse code plus CR and comma
 static const uint32_t extendedTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
     ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, 'm', 'g', 'f', ',', 'y', 'w', 'p', 'b'
 };
 static const uint32_t XMLTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
-    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, '<', '>', '/', ':', '.', 0x27, '"', '_'
+    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, '<', '>', '/', ':', '.', 0x27, '"', 'w'
 };
 static const uint32_t CTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
     ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, '*', '=', ';', '\t', ')', '(', 0x27, '/'
 };
 
-// text mode: a one indicates a character from the most frequent characters based on Morse code set
+//  adaptive text mode: a one indicates a character from the most frequent characters based on Morse code set plus a few non-alpha chars
 static const uint32_t predefinedBitTextChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, // 0xA
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -112,7 +112,7 @@ static const uint32_t predefinedBitTextChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-// bit text mode: index to predefined char or 99 if another value
+// adaptive text mode: index to predefined char or 99 if another value
 static const uint32_t extendedTextEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 14, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
@@ -132,7 +132,7 @@ static const uint32_t extendedTextEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99
     };
 
-// adaptive text mode: modified to coincide with input characters
+// adaptive text mode: modified to coincide with adaptive input characters and then reset when encoding completes
 static uint32_t adaptiveTextEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 14, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
@@ -586,7 +586,7 @@ static inline int32_t setAdaptiveChars(const unsigned char *val256, unsigned cha
         adaptiveTextEncoding['.'] = 19;
         adaptiveTextEncoding[0x27] = 20;
         adaptiveTextEncoding['"'] = 21;
-        adaptiveTextEncoding['_'] = 22;
+        adaptiveTextEncoding['w'] = 22;
         *textEncodingArray = adaptiveTextEncoding;
         outVals[0] = 0x17; // indicate text mode with html/xml chars
         return 1;
@@ -630,7 +630,7 @@ static inline void resetAdaptiveChars(uint32_t adaptiveUsed)
             adaptiveTextEncoding['.'] = 99;
             adaptiveTextEncoding[0x27] = 99;
             adaptiveTextEncoding['"'] = 99;
-            adaptiveTextEncoding['_'] = 99;
+            adaptiveTextEncoding['w'] = 99;
         }
         else if (adaptiveUsed == 2)
         {
@@ -670,8 +670,7 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
     memcpy(saveUniques, outVals+1, nUniquesIn);
     if (predefinedTextCharCnt)
     {
-        // predefined text char count is high enough to guarantee compreession even if remainder of checked values contain no text chars
-        // use standard text table, accept compression even if maxBytes exeeded
+        // predefined text char count is high enough to use standard text table
         outVals[0] = 0x7; // indicate text mode with standard text
         outVals[1] = 0; // init first value used by esmOutputBits
         while (pInVal < pLastInValPlusOne)
@@ -838,9 +837,10 @@ int32_t encodeSingleValueMode(unsigned char *inVals, unsigned char *outVals, con
             g_td64CompressNSVblocks++;
             g_td64nNSVcnt += nNSV;
 #endif
-            //retBits = td64(outVals+firstNonSingle, outTemp, nNSV);
             retBits = encodeStringModeExtended(outVals+firstNonSingle, outTemp, nNSV, &nValuesOut);
-            if (retBits < 16)
+            if (retBits < 0)
+                return -28;
+            if (retBits > (nNSV-2)*8 || retBits == 0)
             {
 #ifdef TD64_TEST_MODE
                 g_td64CompressNonSingleValues += nNSV*8; // not enough compression
@@ -1094,33 +1094,29 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
             highBitCheck |= inVal; // keep watch on high bit of unique values
         }
     }
-    if (nUniqueVals > nValsInitLoop * 7/8 - 1)
+    if (nUniqueVals > nValsInitLoop - nValsInitLoop/8 - 1 && (highBitCheck & 0x80))
     {
-        // supported unique values exceeded
-        // check highBitCheck for high bit clear
-        if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
-        {
-            // attempt to compress based on high bit clear across all values
-            // confirm remaining values have high bit clear
-            while (inPos < nValues)
-                highBitCheck |= inVals[inPos++];
-            if ((highBitCheck & 0x80) == 0)
-                return encode7bits(inVals, outVals, nValues);
-        }
-        outVals[0] = 0; // indicate random data failure
-        return 0; // too many uniques to compress with fixed bit coding
+        // unique values exceed usual count to be compressed and high bit across tested values is not 0
+        outVals[0] = 0; // indicate random data failure in first check
+        return 0;
     }
     if (nUniqueVals > uniqueLimit/2 && predefinedTextCharCnt > nValsInitLoop/2)
     {
         // encode in text mode if at least 11% compression expected
+#ifdef TD64_TEST_MODE
+        uint32_t save8bitCount=g_td64Text8bitCount;
+        uint32_t saveAdaptive8bitCount=g_td64AdaptiveText8bitCount;
+#endif
         uint32_t retBits=encodeAdaptiveTextMode(inVals, outVals, nValues, val256, nUniqueVals, predefinedTextCharCnt > nValsInitLoop*3/4, nValues-nValues/8);
         if (retBits != 0)
             return retBits;
 #ifdef TD64_TEST_MODE
+        g_td64Text8bitCount = save8bitCount; // reset count before failure
+        g_td64AdaptiveText8bitCount = saveAdaptive8bitCount; // reset
         g_td64FailedTextMode++;
 #endif
     }
-    // continue fixed bit loop with multiple checks
+    // continue fixed bit loop with check for single value
     // perform this even when uniqueLimit is exceeded to do single value mode and string mode
     const uint32_t minRepeatsSingleValueMode=nValues<16 ? nValues/2 : nValues/4+2;
     int32_t singleValue=-1; // set to value if min repeats reached
@@ -1149,25 +1145,9 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         const uint32_t compressNSV=0; // don't compress non-single values when unique limit exceeded
         return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
     }
-    const uint32_t nUniquesRandom=nValues*5/8 < MAX_STRING_MODE_UNIQUES ? nValues*5/8 : MAX_STRING_MODE_UNIQUES;
-    if (nUniqueVals > nUniquesRandom)
+    if (nUniqueVals <= uniqueLimit)
     {
-        if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
-        {
-            // attempt to compress based on high bit clear across all values
-            // confirm remaining values have high bit clear
-            while (inPos < nValues)
-                highBitCheck |= inVals[inPos++];
-            if ((highBitCheck & 0x80) == 0)
-                return encode7bits(inVals, outVals, nValues);
-        }
-        outVals[0] = 0; // indicate random data failure
-        return 0; // too many uniques to compress with fixed bit coding
-    }
-    if (nUniqueVals <= uniqueLimit) // confirm unique limit has not been exceeded
-    {
-        // continue fixed bit loop with checks for high bit set and repeat counts,
-        // but not single value
+        // continue fixed bit loop with checks for high bit set and repeat counts, but without single value
         while (inPos < nValues)
         {
             const uint32_t inVal=inVals[inPos++];
@@ -1185,70 +1165,79 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         // fixed bit coding failed, try for other compression modes
         if (singleValue >= 0)
         {
-            // always choose single value mode first when unique limit exceeded
+            // always choose single value mode first
             const uint32_t compressNSV=0; // don't compress non-single values when unique limit exceeded
             return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
         }
+        const uint32_t nUniquesRandom=nValues*3/4 < MAX_STRING_MODE_UNIQUES ? nValues*3/4 : MAX_STRING_MODE_UNIQUES;
+        const uint32_t checkHighBit=(highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE;
+        if (nUniqueVals > nUniquesRandom)
+        {
+            if (checkHighBit)
+            {
+                // compress based on high bit clear across all values
+                // with this quantity of uniques, this mode should offer the best compression
+                return encode7bits(inVals, outVals, nValues);
+            }
+            if (nUniqueVals < nValues * 9/16)
+            {
+                // extended string mode usually gets very small compression with this number of uniques
+    #ifdef TD64_TEST_MODE
+                g_td64StringBlocks++;
+    #endif
+                uint32_t nValuesOut;
+                int32_t retBits=encodeStringModeExtended(inVals, outVals, nValues, &nValuesOut);
+                if (retBits == 0)
+                {
+#ifdef TD64_TEST_MODE
+                    g_td64FailedStringMode++;
+#endif
+                    outVals[0] = 1; // indicate general failure to compress
+                }
+                return retBits; // no compression or error condition (<0)
+            }
+            outVals[0] = 2; // indicate random data failure in second check
+            return 0; // compression failed
+        } // end check on possible random data
         if ((nValues >= MIN_VALUES_STRING_MODE))
         {
-            uint32_t maxBits = ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUE_7_BIT_MODE_12_PERCENT) ?  nValues*7 : nValues*7+nValues/2 ;
+            // string mode for 32+ values with 17 to 32 uniques and fewer than MAX_STRING_MODE_UNIQUES
+            // max bits set to 12% if high bit clear and enough input values, else 2%
+            const uint32_t maxBits=checkHighBit ? nValues*8-nValues : nValues*8-nValues/4-1;
             int32_t retBits;
 #ifdef TD64_TEST_MODE
             g_td64StringBlocks++;
 #endif
-            if (nUniqueVals > MAX_STRING_MODE_UNIQUES)
+            if (nUniqueVals >= MIN_STRING_MODE_UNIQUES)
             {
-                // extended string mode supports up to 64 uniques but is slow and not guaranteed to achieve any particular compression, and is needed less than 5% of time in data tested; could be used if a quick metric to predict compression level can be found
-                // NOTE: more than 32 uniques is currently being labeled random data
-#ifdef TD64_TEST_MODE
-                g_td64MaxStringModeUniquesExceeded++;
-#endif
-/*
-                // extended string mode
-                uint32_t nValuesOut;
-                int32_t retBits=encodeStringModeExtended(inVals, outVals, nValues, &nValuesOut);
-                if (retBits < 0)
-                    return retBits;
-                if (retBits < maxBits)
-                    return retBits;
-#ifdef TD64_TEST_MODE
-                g_td64FailedStringMode++;
-#endif
-*/            }
-            else if (nUniqueVals >= MIN_STRING_MODE_UNIQUES)
-            {
-                // string mode for 32+ values with 17 to 32 uniques
-                // max bits set to 12% if high bit clear and enough input values, else 6%
-                if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, (highBitCheck & 0x80) == 0, maxBits)) != 0)
-                    return retBits;
-#ifdef TD64_TEST_MODE
-                g_td64FailedStringMode++;
-#endif
+                if ((retBits=encodeStringMode(inVals, outVals, nValues, nUniqueVals, uniqueOccurrence, checkHighBit, maxBits)) != 0)
+                return retBits;
             }
+            else
+            {
+                uint32_t nValuesOut;
+                if ((retBits=encodeStringModeExtended(inVals, outVals, nValues, &nValuesOut)) < 0)
+                    return retBits;
+                if (retBits >= maxBits)
+                    return retBits;
+            }
+#ifdef TD64_TEST_MODE
+            g_td64FailedStringMode++;
+#endif
+            outVals[0] = 1; // indicate general failure to compress
         }
-        if ((highBitCheck & 0x80) == 0 && nValues >= MIN_VALUES_7_BIT_MODE)
+        if (checkHighBit)
         {
             // compress in high bit mode
             return encode7bits(inVals, outVals, nValues);
         }
-        outVals[0] = 1; // indicate general failure to compress
         return 0; // unable to compress
     }
-    else if (nUniqueVals > 4)
+    else if (nUniqueVals > 4 && singleValue >= 0)
     {
-        if (singleValue >= 0)
-        {
-            // check for benefit of single value mode when 4-bit fixed bit encoding
-            // requires at least 38 input values to have 9 or more uniques
-            // FUTURE: graduate based on number of uniques versus fixed 31%
-            //const uint32_t singleValueOverFixexBitRepeats=nValues/2-nValues/16; //
-            //if (val256[singleValue] >= singleValueOverFixexBitRepeats)
-            {
-                // favor single value over fixed 4-bit encoding
-                const uint32_t compressNSV=1; // for small numbers of uniques, try to compress non-single values
-                return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
-            }
-        }
+        // favor single value over fixed 3- and 4-bit encoding
+        const uint32_t compressNSV=1; // for small numbers of uniques, try to compress non-single values
+        return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
     }
     // process fixed bit coding inline
     uint32_t i;
@@ -1629,7 +1618,7 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
             return -27;
         assert(retBits == nNSVs);
         pNSVs = uncompressedNSVs;
-        compressedBytesProcessed = nextInVal + bytesProcessed + 1; // include byte for nNSVs
+        compressedBytesProcessed = nextInVal + bytesProcessed; // byte for nNSVs replaces first byte of encoded data
         nextInVal = 0; // point to NSVs in local array
     }
     else
@@ -1852,6 +1841,8 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
                 const uint32_t stringLen = (uint32_t)(theBits & 7) + 2;
                 assert(stringLen <= STRING_LIMIT);
                 const uint32_t stringPos=uPos[(uint32_t)theBits >> 3];
+                if (stringPos+stringLen > nextOutVal)
+                    return -1;
                 assert((uint32_t)stringPos+stringLen <= nextOutVal);
                 assert(nextOutVal+stringLen <= nOriginalValues);
                 memcpy(outVals+nextOutVal, outVals+stringPos, stringLen);

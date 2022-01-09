@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
-//#define NDEBUG // disable asserts
+#define NDEBUG // disable asserts
 #include <assert.h>
 
 #define MAX_UNIQUES_EXTENDED_STRING_MODE 64

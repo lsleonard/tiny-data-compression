@@ -101,7 +101,7 @@ int32_t encodeStringModeExtended(const unsigned char *inVals, unsigned char *out
     const uint32_t lastPos=nValuesMax-1;
     while (inPos < lastPos)
     {
-        if (nextOutIx+nUniques > nValuesMax-1)
+        if (nextOutIx+nUniques > lastPos)
             return 0;
         inVal = inVals[inPos++]; // inPos inc'd to next position
         uint32_t UOinVal=uniqueOccurrence[inVal];
@@ -397,6 +397,8 @@ int32_t decodeStringModeExtended(const unsigned char *inVals, unsigned char *out
                 uint32_t nPosBits = encodingBits512[nextOutVal];
                 dsmGetBits2(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits);
                 uint32_t stringPos=(uint32_t)theBits;
+                if (stringPos+stringLen > nextOutVal)
+                    return -1;
                 assert((uint32_t)stringPos+stringLen <= nextOutVal);
                 assert(nextOutVal+stringLen <= nOriginalValues);
                 memcpy(outVals+nextOutVal, outVals+stringPos, stringLen);

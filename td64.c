@@ -81,15 +81,16 @@ static const uint32_t textEncoding[256]={
 };
 
 // adaptive text mode where characters have a variable number of bits
-#define MAX_PREDEFINED_BIT_CHAR_COUNT 23 // bit text mode: most frequent characters from Morse code plus CR and comma
-static const uint32_t extendedTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+#define MAX_PREDEFINED_FREQUENCY_CHAR_COUNT 23 // adaptive text mode: most frequent characters from Morse code plus CR and comma
+#define MAX_PREDEFINED_ADAPTIVE_CHAR_COUNT 23
+static const uint32_t extendedTextChars[MAX_PREDEFINED_FREQUENCY_CHAR_COUNT]={
     ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, 'm', 'g', 'f', ',', 'y', 'w', 'p', 'b'
 };
-static const uint32_t XMLTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
-    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, '<', '>', '/', ':', '.', 0x27, '"', 'w'
+static const uint32_t XMLTextChars[MAX_PREDEFINED_ADAPTIVE_CHAR_COUNT]={
+    ' ', '/', '<', '>', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 0xA, '.', 'u', 'w', 'c', 0x27, '"', ':'
 };
-static const uint32_t CTextChars[MAX_PREDEFINED_BIT_CHAR_COUNT]={
-    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', 'u', 'c', 0xA, '*', '=', ';', '\t', ')', '(', 0x27, '/'
+static const uint32_t CTextChars[MAX_PREDEFINED_ADAPTIVE_CHAR_COUNT]={
+    ' ', 'e', 't', 'a', 'i', 'n', 'o', 's', 'h', 'r', 'd', 'l', '*', '=', '\t', 0xA, 'c', ';', 'f', '(', ')', 0x27, '/'
 };
 
 //  adaptive text mode: a one indicates a character from the most frequent characters based on Morse code set plus a few non-alpha chars
@@ -132,16 +133,36 @@ static const uint32_t extendedTextEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99
     };
 
-// adaptive text mode: modified to coincide with adaptive input characters and then reset when encoding completes
-static uint32_t adaptiveTextEncoding[256]={
-    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 14, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
-     0, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+// adaptive text mode: values set to frequently occurring characters in XML or HTML data, see initAdaptiveTextMode
+static uint32_t adaptiveXMLEncoding[256]={
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
-    99,  3, 99, 13, 10,  1, 99, 99,  8,  4, 99, 99, 11, 99,  5,  6,
-    99, 99,  9,  7,  2, 12, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99
+    };
+
+// adaptive text mode: values set to frequently occurring characters in C or other programming language data, see initAdaptiveTextMode
+static uint32_t adaptiveCEncoding[256]={
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
     99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
@@ -561,94 +582,103 @@ static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, c
     }
 } // end esmOutputBits
 
-static uint32_t textNBitsTable[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+static uint32_t textNBitsTable[MAX_PREDEFINED_FREQUENCY_CHAR_COUNT]={
     3, 3, 4, 4,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
     7, 7, 7, 7
 };
-static uint32_t textBitValTable[MAX_PREDEFINED_BIT_CHAR_COUNT]={
+static uint32_t textBitValTable[MAX_PREDEFINED_FREQUENCY_CHAR_COUNT]={
     1, 3, 7, 15,
     0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28,
     0x1e, 0x3e, 0x5e, 0x7e
 };
 
-static inline int32_t setAdaptiveChars(const unsigned char *val256, unsigned char *outVals, const uint32_t nValues, const uint32_t **textEncodingArray)
+void initAdaptiveTextMode(void)
+{
+    adaptiveXMLEncoding[' '] = 0;
+    adaptiveXMLEncoding['/'] = 1;
+    adaptiveXMLEncoding['<'] = 2;
+    adaptiveXMLEncoding['>'] = 3;
+    adaptiveXMLEncoding['e'] = 4;
+    adaptiveXMLEncoding['t'] = 5;
+    adaptiveXMLEncoding['a'] = 6;
+    adaptiveXMLEncoding['i'] = 7;
+    adaptiveXMLEncoding['n'] = 8;
+    adaptiveXMLEncoding['o'] = 9;
+    adaptiveXMLEncoding['s'] = 10;
+    adaptiveXMLEncoding['h'] = 11;
+    adaptiveXMLEncoding['r'] = 12;
+    adaptiveXMLEncoding['d'] = 13;
+    adaptiveXMLEncoding['l'] = 14;
+    adaptiveXMLEncoding[0xA] = 15;
+    adaptiveXMLEncoding['.'] = 16;
+    adaptiveXMLEncoding['u'] = 17;
+    adaptiveXMLEncoding['w'] = 18;
+    adaptiveXMLEncoding['c'] = 19;
+    adaptiveXMLEncoding[0x27] = 20;
+    adaptiveXMLEncoding['"'] = 21;
+    adaptiveXMLEncoding[':'] = 22;
+
+    adaptiveCEncoding[' '] = 0;
+    adaptiveCEncoding['e'] = 1;
+    adaptiveCEncoding['t'] = 2;
+    adaptiveCEncoding['a'] = 3;
+    adaptiveCEncoding['i'] = 4;
+    adaptiveCEncoding['n'] = 5;
+    adaptiveCEncoding['o'] = 6;
+    adaptiveCEncoding['s'] = 7;
+    adaptiveCEncoding['h'] = 8;
+    adaptiveCEncoding['r'] = 9;
+    adaptiveCEncoding['d'] = 10;
+    adaptiveCEncoding['l'] = 11;
+    adaptiveCEncoding['*'] = 12;
+    adaptiveCEncoding['='] = 13;
+    adaptiveCEncoding['\t'] = 14;
+    adaptiveCEncoding[0xA] = 15;
+    adaptiveCEncoding['c'] = 16;
+    adaptiveCEncoding[';'] = 17;
+    adaptiveCEncoding['f'] = 18;
+    adaptiveCEncoding['('] = 19;
+    adaptiveCEncoding[')'] = 20;
+    adaptiveCEncoding[0x27] = 21;
+    adaptiveCEncoding['/'] = 22;
+}
+
+static uint32_t initAdaptiveChars; // called once to init
+
+static inline uint32_t setAdaptiveChars(const unsigned char *val256, unsigned char *outVals, const uint32_t nValues, const uint32_t **textEncodingArray)
 {
     // if count of characters particular to XML or HTML or C code, set the 8 lowest frequency characers to common characters for that data type
     const uint32_t minCharCount=nValues < 24 ? 2 : 3; // minimum chars to choose an adaptive text set
-    if (val256['<'] + val256['>'] + val256['/'] + val256['"'] >= minCharCount)
+    if (initAdaptiveChars == 0)
+    {
+        initAdaptiveTextMode();
+        initAdaptiveChars = 1;
+    }
+    if (val256['<'] + val256['>'] + val256['/'] + val256['"'] +val256[':'] >= minCharCount)
     {
         // XML or HTML
-        adaptiveTextEncoding['<'] = 15;
-        adaptiveTextEncoding['>'] = 16;
-        adaptiveTextEncoding['/'] = 17;
-        adaptiveTextEncoding[':'] = 18;
-        adaptiveTextEncoding['.'] = 19;
-        adaptiveTextEncoding[0x27] = 20;
-        adaptiveTextEncoding['"'] = 21;
-        adaptiveTextEncoding['w'] = 22;
-        *textEncodingArray = adaptiveTextEncoding;
+        *textEncodingArray = adaptiveXMLEncoding;
         outVals[0] = 0x17; // indicate text mode with html/xml chars
         return 1;
     }
-    else if (val256['*'] + val256['='] + val256[';'] + val256['\t'] >= minCharCount)
+    else if (val256[','] + val256['='] + val256[';'] + val256['('] + val256[')'] + val256['/'] + val256['*'] >= minCharCount)
     {
         // C or similar
-        adaptiveTextEncoding['*'] = 15;
-        adaptiveTextEncoding['='] = 16;
-        adaptiveTextEncoding[';'] = 17;
-        adaptiveTextEncoding['\t'] = 18;
-        adaptiveTextEncoding[')'] = 19;
-        adaptiveTextEncoding['('] = 20;
-        adaptiveTextEncoding[0x27] = 21;
-        adaptiveTextEncoding['/'] = 22;
-        *textEncodingArray = adaptiveTextEncoding;
+        *textEncodingArray = adaptiveCEncoding;
         outVals[0] = 0x27; // indicate text mode with C or similar chars
         return 2;
     }
     else
     {
-        // use the standard text with possible compression failure (no reset required)
+        // standard text
         *textEncodingArray = extendedTextEncoding;
         outVals[0] = 0x7; // indicate standard text mode
-        return -1;
+        return 0;
     }
 } // end setAdaptiveChars
 
-static inline void resetAdaptiveChars(uint32_t adaptiveUsed)
-{
-    if (adaptiveUsed > 0)
-    {
-        // reset values to 99: unassigned, ready for next call
-        if (adaptiveUsed == 1)
-        {
-            // XML
-            adaptiveTextEncoding['<'] = 99;
-            adaptiveTextEncoding['>'] = 99;
-            adaptiveTextEncoding['/'] = 99;
-            adaptiveTextEncoding[':'] = 99;
-            adaptiveTextEncoding['.'] = 99;
-            adaptiveTextEncoding[0x27] = 99;
-            adaptiveTextEncoding['"'] = 99;
-            adaptiveTextEncoding['w'] = 99;
-        }
-        else if (adaptiveUsed == 2)
-        {
-            // C or similar
-            // replace the final eight characters in adaptiveTextEncoding with these
-            adaptiveTextEncoding['*'] = 99;
-            adaptiveTextEncoding['='] = 99;
-            adaptiveTextEncoding[';'] = 99;
-            adaptiveTextEncoding['\t'] = 99;
-            adaptiveTextEncoding[')'] = 99;
-            adaptiveTextEncoding['('] = 99;
-            adaptiveTextEncoding[0x27] = 99;
-            adaptiveTextEncoding['/'] = 99;
-        }
-    }
-} // end resetAdaptiveChars
-
-int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const unsigned char *val256, const uint32_t nUniquesIn, const uint32_t predefinedTextCharCnt, const uint32_t maxBytes)
+int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const unsigned char *val256, const uint32_t predefinedTextCharCnt, const uint32_t highBitclear, const uint32_t maxBytes)
 {
     // Use these frequency-related bit encodings:
     // 101       value not in 23 text values, followed by 8-bit value
@@ -662,78 +692,38 @@ int32_t encodeAdaptiveTextMode(unsigned char *inVals, unsigned char *outVals, co
     uint32_t nextOutIx=1;
     uint32_t nextOutBit=0;
     uint32_t eVal;
-    int32_t adaptiveUsed; // set to encoding used
-    unsigned char saveUniques[MAX_TD64_BYTES];
     const uint32_t *textEncodingArray=extendedTextEncoding;
-
-    // save uniques for possible failure
-    memcpy(saveUniques, outVals+1, nUniquesIn);
+    const uint32_t output7or8=highBitclear ? 7 : 8;
+    
     if (predefinedTextCharCnt)
-    {
-        // predefined text char count is high enough to use standard text table
-        outVals[0] = 0x7; // indicate text mode with standard text
-        outVals[1] = 0; // init first value used by esmOutputBits
-        while (pInVal < pLastInValPlusOne)
-        {
-            // catch predefined chars and adaptive chars already encountered
-            eVal=textEncodingArray[(inVal=(unsigned char)*(pInVal++))];
-            if (eVal <= MAX_PREDEFINED_BIT_CHAR_COUNT)
-            {
-                esmOutputBits(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit);
-            }
-            else
-            {
-                // output char not predefined or adaptive
-                if (nextOutIx > maxBytes)
-                {
-                    // main verifies up to 1/2 of data values looked at are text
-                    // reset uniques in output array
-                    memcpy(outVals+1, saveUniques, nUniquesIn);
-                    return 0; // requested compression not met
-                }
-                esmOutputBits(outVals, 3, 0x5, &nextOutIx, &nextOutBit);
-                esmOutputBits(outVals, 8, inVal, &nextOutIx, &nextOutBit); // output 8 bits
-#ifdef TD64_TEST_MODE
-                g_td64Text8bitCount++;
-#endif
-            }
-        }
-    }
+        outVals[0] = 0x7; // default to standard text mode if predefined text char count is high enough
     else
+        setAdaptiveChars(val256, outVals, nValues, &textEncodingArray);
+    if (highBitclear)
+        outVals[0] |= 128; // set high bit of info byte to indicate 7-bit values
+    outVals[1] = 0; // init first value used by esmOutputBits
+    while (pInVal < pLastInValPlusOne)
     {
-        // use fixed adaptive text mode
-        adaptiveUsed = setAdaptiveChars(val256, outVals, nValues, &textEncodingArray);
-        outVals[1] = 0; // init first value used by esmOutputBits
-        while (pInVal < pLastInValPlusOne)
+        eVal=textEncodingArray[(inVal=(unsigned char)*(pInVal++))];
+        if (eVal <= MAX_PREDEFINED_FREQUENCY_CHAR_COUNT)
         {
-            // catch predefined chars and adaptive chars already encountered
-            eVal=textEncodingArray[(inVal=(unsigned char)*(pInVal++))];
-            if (eVal <= MAX_PREDEFINED_BIT_CHAR_COUNT)
-            {
-                esmOutputBits(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit);
-            }
-            else
-            {
-                // output char not predefined or adaptive
-                if (nextOutIx > maxBytes)
-                {
-                    // main verifies only 1/2 of data values looked at are text
-                    resetAdaptiveChars(adaptiveUsed); // prep for next time
-                    // reset uniques in output array
-                    memcpy(outVals+1, saveUniques, nUniquesIn);
-                    return 0; // requested compression not met
-                }
-                esmOutputBits(outVals, 3, 0x5, &nextOutIx, &nextOutBit);
-                esmOutputBits(outVals, 8, inVal, &nextOutIx, &nextOutBit); // output 8 bits
-#ifdef TD64_TEST_MODE
-                if ((outVals[0] & 0x37) == 7)
-                    g_td64Text8bitCount++;
-                else
-                    g_td64AdaptiveText8bitCount++;
-#endif
-            }
+            // encode predefined chars and adaptive chars
+            esmOutputBits(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit);
         }
-        resetAdaptiveChars(adaptiveUsed); // prep for next time
+        else
+        {
+            // output char not predefined or adaptive
+            if (nextOutIx > maxBytes)
+                return 0; // requested compression not met
+            esmOutputBits(outVals, 3, 0x5, &nextOutIx, &nextOutBit);
+            esmOutputBits(outVals, output7or8, inVal, &nextOutIx, &nextOutBit); // output 7 bits if high bit clear, else 8
+#ifdef TD64_TEST_MODE
+            if (textEncodingArray == extendedTextEncoding)
+                g_td64Text8bitCount++;
+            else
+                g_td64AdaptiveText8bitCount++;
+#endif
+        }
     }
     return nextOutIx * 8 + nextOutBit;
 } // end encodeAdaptiveTextMode
@@ -1049,14 +1039,14 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
 
 int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 // td64: Compress nValues bytes. Return 0 if not compressible (no output bytes),
-//    -1 if error; otherwise, number of bits written to outVals.
+//    negative value if error; otherwise, number of bits written to outVals.
 //    Management of whether compressible and number of input values must be maintained
 //    by caller. Decdode requires number of input values and only accepts compressed data.
 // Arguments:
 //   inVals   input byte values
 //   outVals  output byte values if compressed, max of inVals bytes
 //   nValues  number of input byte values
-// Returns number of bits compressed, 0 if not compressed, or -1 if error
+// Returns number of bits compressed, 0 if not compressed, or negative value if error
 {
     if (nValues <= 5)
         return td5(inVals, outVals, nValues);
@@ -1072,13 +1062,13 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     uint32_t uniqueOccurrence[256]; // order of occurrence of uniques
     uint32_t nUniqueVals=0; // count of unique vals encountered
     unsigned char val256[256]={0}; // init characters found to 0
-    const uint32_t uniqueLimit=uniqueLimits25[nValues]; // if exceeded, return uncompressible by fixed bit coding
+    const uint32_t uniqueLimit=uniqueLimits25[nValues]; // if exceeded, cannot use fixed bit coding
 
     // process enough input vals to eliminate most random data and to check for text mode
     // for fixed bit coding find and output the uniques starting at outVal[1]
     //    and saving the unique occurrence value to be used when values are output
     // for 7 bit mode OR every value
-    // for text mode count number of text characters
+    // for text mode count number of predfined text characters
     // for single value mode accumulate frequency counts
     const uint32_t nValsInitLoop=nValues<24 ? nValues/2 : nValues*7/16; // 1-23 use 1/2 nValues, 24+ use 7/16 nValues; fewer values means faster execution but possibly lower compression
     uint32_t inPos=0;
@@ -1107,9 +1097,24 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
         uint32_t save8bitCount=g_td64Text8bitCount;
         uint32_t saveAdaptive8bitCount=g_td64AdaptiveText8bitCount;
 #endif
-        uint32_t retBits=encodeAdaptiveTextMode(inVals, outVals, nValues, val256, nUniqueVals, predefinedTextCharCnt > nValsInitLoop*3/4, nValues-nValues/8);
+        const uint32_t useExtendedTextMode=predefinedTextCharCnt >= nValsInitLoop*7/8; // use extended text mode rather than adaptive text mode
+        uint32_t highBitClear=0;
+        if ((highBitCheck & 0x80) == 0)
+        {
+            // original values encoded with 7 bits if high bit is clear for all else 8 bits
+            uint32_t inPos2=inPos;
+            while (inPos2 < nValues)
+                highBitCheck |= inVals[inPos2++]; // check for remaining values with high bit clear
+            if ((highBitCheck & 0x80) == 0)
+                highBitClear = 1;
+        }
+        // save uniques in outVals to recover on failure
+        unsigned char saveUniques[MAX_TD64_BYTES];
+        memcpy(saveUniques, outVals+1, nUniqueVals);
+        uint32_t retBits=encodeAdaptiveTextMode(inVals, outVals, nValues, val256, useExtendedTextMode, highBitClear, nValues-nValues/8);
         if (retBits != 0)
             return retBits;
+        memcpy(outVals+1, saveUniques, nUniqueVals);
 #ifdef TD64_TEST_MODE
         g_td64Text8bitCount = save8bitCount; // reset count before failure
         g_td64AdaptiveText8bitCount = saveAdaptive8bitCount; // reset
@@ -1141,7 +1146,7 @@ int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValu
     {
         // early opportunity for single value mode
         // single value mode is fast and set to get minimum 12% compression for 64 values
-        // only single value mode can have more then MAX_STRING_MODE_UNIQUES
+        // single value mode is not limited by MAX_STRING_MODE_UNIQUES
         const uint32_t compressNSV=0; // don't compress non-single values when unique limit exceeded
         return encodeSingleValueMode(inVals, outVals, nValues, singleValue, compressNSV);
     }
@@ -1500,10 +1505,11 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
     uint32_t bitPos=0;
     uint32_t theBits;
     const uint32_t *pTextChars; // points to text chars encoded with
+    const uint32_t input7or8=(inVals[0] & 0x80) ? 7 : 8; // high bit of info bit indicates whether unreplaced values output as 7 or 8 bits
         
-    if (inVals[0] == 0x17)
+    if ((inVals[0] & 0x3f) == 0x17)
         pTextChars = XMLTextChars;
-    else if (inVals[0] == 0x27)
+    else if ((inVals[0] & 0x3f) == 0x27)
         pTextChars = CTextChars;
     else
         pTextChars=extendedTextChars;
@@ -1514,9 +1520,9 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
         dtbmPeekBits(inVals, 7, thisInValIx, bitPos, &theBits);
         if ((theBits & 7) == 5)
         {
-            // original value, get 8 more bits
+            // original value, get 7 or 8 more bits
             dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos);
-            dtbmGetBits(inVals, 8, &thisInValIx, &bitPos, &theBits);
+            dtbmGetBits(inVals, input7or8, &thisInValIx, &bitPos, &theBits);
             outVals[nextOutVal++] = (unsigned char)theBits;
         }
         else
@@ -1610,13 +1616,11 @@ int32_t decodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
     if (inVals[0] & 8)
     {
         // non-single values were compressed, byte at nextInVal is number NSVs
-        int32_t retBits;
         uint32_t bytesProcessed;
         uint32_t nNSVs=inVals[nextInVal];
         // first byte in encoded extended string mode is 0x7f, which is not stored; value at nextInVal is not referenced
-        if ((retBits=decodeStringModeExtended(inVals+nextInVal, uncompressedNSVs, nNSVs, &bytesProcessed)) <= 0)
+        if ((decodeStringModeExtended(inVals+nextInVal, uncompressedNSVs, nNSVs, &bytesProcessed)) <= 0)
             return -27;
-        assert(retBits == nNSVs);
         pNSVs = uncompressedNSVs;
         compressedBytesProcessed = nextInVal + bytesProcessed; // byte for nNSVs replaces first byte of encoded data
         nextInVal = 0; // point to NSVs in local array

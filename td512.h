@@ -80,8 +80,9 @@
  */
 // Notes for version 1.1.8
 /*
- 1. Focus on catching all possible compressible data while handling random data as quickly as possible. Defined two places that catch random data.
- 2. Replaced '_' with 'w' in XML adaptive characters to address www in URLs
+ 1. Check for too many uniques to yield compression after initial loops complete and label the return random data.
+ 2. Added check for high bit clear in text mode and output 7-bit non-predefined values when all values have a 0 in high bit.
+ 3. Added definition of predefined characters for adaptive text mode for XML and C data to take advantage of fewer bits for more frequently occurring characters.
  */
 #ifndef td512_h
 #define td512_h

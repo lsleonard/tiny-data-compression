@@ -1,6 +1,9 @@
 //
 //  td64.h
 //  high-speed lossless tiny data compression of 1 to 64 bytes based on td64
+//
+//  Created by L. Stevan Leonard on 3/21/20.
+//  Copyright © 2020-2022 L. Stevan Leonard. All rights reserved.
 /*
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -13,78 +16,8 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.//
+    along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
-// Notes for version 1.1.0:
-/*
- 1. Main program reads a file into memory that is compressed by
-    calling td512 repeatedly. When complete, the compressed data is
-    written to a file and read for decompression by calling td512d.
-      td512 filename [loopCount]]
-        filename is required argument 1.
-        loopCount is optional argument 2 (default: 1). Looping is performed over the entire input file.
- */
-// Notes for version 1.1.1:
-/*
- 1. Updated some descriptive comments.
- */
-// Notes for version 1.1.2:
-/*
- 1. Moved 7-bit mode defines to td64.h because they are used
-    outside of the 7-bit mode.
- 2. When fewer than minimum values to use 7-bit mode of 16, don't
-    accumulate high bit when reasonable. Main loop keeps this in because
-    time required is minimal.
- 3. When fewer than 24 input values, but greater than or equal to minimum
-    values of 16 to use 7-bit mode, use 6% as minimum compression for
-    compression modes used prior to 7-bit mode.
- */
-// Notes for version 1.1.3:
-/*
- 1. Fixed bugs in td5 and td5d functions.
- 2. Recognize random data starting at 16 input values.
- */
-// Notes for version 1.1.4:
-/*
- 1. Added bit text mode that uses variable length encoding bits
-    to maximize compression. td5 still uses the fixed bit text mode.
- 2. Changed the random data metric to use number values init
-    loop * 7/8 + 1 to be threshold for random data.
- 3. Implemented a static global for decoding bit text mode and
-    string mode to limit reads of input values.
-*/
-// Notes for version 1.1.5
-/*
- 1. Added adaptive text mode that looks for occurrences of characters
-    that are common to a particular data type when fewer than 3/4 of
-    the input values are matched by a predefined character. Defined
-    XML and HTML based on '<', '>', '/' and '"'. Defined C or other
-    code files based on '*', '=', ';' and '\t'. Eight characters
-    common to the text type are defined in the last 8 characters of
-    the characters encoded.
- 2. Added compression of high bit in unique characters in string mode
-    when the high bit is 0 for all values.
- 3. Set the initial loop in td64 to 7/16 of input values for 24 or
-    more inputs. This provides a better result for adaptive text mode.
- */
-// Notes for version 1.1.6
-/*
- 1. Modified random data check and added a later check for random data.
- 2. Added an early call to single value mode.
- 3. Updated unused extended string mode to calculate high bit clear during processing and check for overflow as late as possible.
-*/
-// Notes for version 1.1.7
-/*
- 1. In single value mode, added compression of non-single values. This option is enabled for 5 to unique limit uniques where compression rate is worthwhile.
- 2. Changed STRING_LIMIT to 9 (3 bits) in extended string mode to get better compression for up to 64 values. This function can be used for 512 values when that change is made to td512, and use STRING_LIMIT of 17 (4 bits).
- 3. Added some test mode values.
- */
-// Notes for version 1.1.8
-/*
- 1. Check for too many uniques to yield compression after initial loops complete and label the return random data.
- 2. Added check for high bit clear in text mode and output 7-bit non-predefined values when all values have a 0 in high bit.
- 3. Added definition of predefined characters for adaptive text mode for XML and C data to take advantage of fewer bits for more frequently occurring characters.
- */
 #ifndef td64_h
 #define td64_h
 
@@ -94,7 +27,7 @@
 #define NDEBUG // disable asserts
 #include <assert.h>
 
-#define TD64_VERSION "v1.1.8"
+#define TD64_VERSION "v2.1.1"
 #define MAX_TD64_BYTES 64  // max input vals supported
 #define MIN_TD64_BYTES 1  // min input vals supported
 #define MAX_UNIQUES 16 // max uniques supported in input
@@ -107,7 +40,9 @@
 
 int32_t td5(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);
-int32_t td64(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
+int32_t td64(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
 int32_t td64d(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);
+int32_t encodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, const unsigned char *val256, const uint32_t predefinedTextCharCnt, const uint32_t highBitclear, const uint32_t maxBytes);
+int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed);
 
 #endif /* td64_h */

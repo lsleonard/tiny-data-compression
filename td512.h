@@ -1,89 +1,34 @@
 //  td512.h
-//  high-speed lossless tiny data compression of 1 to 512 bytes based on td64
+//  high-speed lossless tiny data compression of 1 to 512 bytes
+//
+//  Created by L. Stevan Leonard on 10/31/21.
+//  Copyright © 2021-2022 L. Stevan Leonard. All rights reserved.
 /*
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.//
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+// Notes for version 2.1.1:
+/*
+ 1. In td512.c, for 128 and more values, text and extended string modes
+    are called for checked data. For other data, and for any remaining values
+    from calls for 128 or more values, td64 is called.
+    A minimum of 16 characters are compressed.
+ 2. In tdString.c, extended string mode was modified to stop on the 65th
+    unique value. This value is the last value output and the number
+    of values at that point is returned.
+ 3. In main.c, after decompression, the input file is verified against
+    the decompressed output file.
 */
-// Notes for version 1.1.0:
-/*
- 1. Main program reads a file into memory that is compressed by
-    calling td512 repeatedly. When complete, the compressed data is
-    written to a file and read for decompression by calling td512d.
-      td512 filename [loopCount]]
-        filename is required argument 1.
-        loopCount is optional argument 2 (default: 1). Looping is performed over the entire input file.
- */
-// Notes for version 1.1.1:
-/*
- 1. Updated some descriptive comments.
- */
-// Notes for version 1.1.2:
-/*
- 1. Moved 7-bit mode defines to td64.h because they are used
-    outside of the 7-bit mode.
- 2. When fewer than minimum values to use 7-bit mode of 16, don't
-    accumulate high bit when reasonable. Main loop keeps this in because
-    time required is minimal.
- 3. When fewer than 24 input values, but greater than or equal to minimum
-    values of 16 to use 7-bit mode, use 6% as minimum compression for
-    compression modes used prior to 7-bit mode.
- */
-// Notes for version 1.1.3:
-/*
- 1. Fixed bugs in td5 and td5d functions.
- 2. Recognize random data starting at 16 input values.
- */
-// Notes for version 1.1.4:
-/*
- 1. Added bit text mode that uses variable length encoding bits
-    to maximize compression. td5 still uses the fixed bit text mode.
- 2. Changed the random data metric to use number values init
-    loop * 7/8 + 1 to be threshold for random data.
- 3. Implemented a static global for decoding bit text mode and
-    string mode to limit reads of input values.
-*/
-// Notes for version 1.1.5
-/*
- 1. Added adaptive text mode that looks for occurrences of characters
-    that are common to a particular data type when fewer than 3/4 of
-    the input values are matched by a predefined character. Defined
-    XML and HTML based on '<', '>', '/' and '"'. Defined C or other
-    code files based on '*', '=', ';' and '\t'. Eight characters
-    common to the text type are defined in the last 8 characters of
-    the characters encoded.
- 2. Added compression of high bit in unique characters in string mode
-    when the high bit is 0 for all values.
- 3. Set the initial loop in td64 to 7/16 of input values for 24 or
-    more inputs. This provides a better result for adaptive text mode.
- */
-// Notes for version 1.1.6
-/*
- 1. Modified random data check and added a later check for random data.
- 2. Added an early call to single value mode.
- 3. Updated unused extended string mode to calculate high bit clear during processing and check for overflow as late as possible.
-*/
-// Notes for version 1.1.7
-/*
- 1. In single value mode, added compression of non-single values. This option is enabled for 5 to unique limit uniques where compression rate is worthwhile.
- 2. Changed STRING_LIMIT to 9 (3 bits) in extended string mode to get better compression for up to 64 values. This function can be used for 512 values when that change is made to td512, and use STRING_LIMIT of 17 (4 bits).
- 3. Added some test mode values.
- */
-// Notes for version 1.1.8
-/*
- 1. Check for too many uniques to yield compression after initial loops complete and label the return random data.
- 2. Added check for high bit clear in text mode and output 7-bit non-predefined values when all values have a 0 in high bit.
- 3. Added definition of predefined characters for adaptive text mode for XML and C data to take advantage of fewer bits for more frequently occurring characters.
- */
 #ifndef td512_h
 #define td512_h
 
@@ -91,7 +36,15 @@
 #include "tdString.h"
 #include <unistd.h>
 
-int32_t td512(unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
-int32_t td512d(unsigned char *inVals, unsigned char *outVals, uint32_t *totalBytesProcessed);
+#define TD512_VERSION "v2.1.1"
+#define MIN_VALUES_EXTENDED_MODE 128
+#define MIN_UNIQUES_SINGLE_VALUE_MODE_CHECK 14
+#define MIN_VALUES_TO_COMPRESS 16
+//#define TD512_TEST_MODE // enable this macro to generate statistics
+
+extern const uint32_t predefinedBitTextChars[256];
+
+int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues);
+int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *totalBytesProcessed);
 
 #endif /* td512_h */

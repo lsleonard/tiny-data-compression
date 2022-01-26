@@ -1,29 +1,27 @@
 //
 //  main.c
 //  high-speed lossless tiny data compression for 1 to 512 bytes based on td512
-//  version 1.1
 //
 //  file-based test bed outputs .td512 file with encoded values
 //  then reads in that file and generates .td512d file with
 //  original values.
 //
-//  Created by Stevan Leonard on 10/30/21.
-//  Copyright © 2021 Oxford House Software. All rights reserved.
-//
+//  Created by L. Stevan Leonard on 10/31/21.
+//  Copyright © 2021-2022 L. Stevan Leonard. All rights reserved.
 /*
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.//
-*/
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "td512.h" // td512 functions
 
 #include <stdio.h>
@@ -31,8 +29,14 @@
 #include <time.h>
 #include <string.h>
 
-#define BENCHMARK_LOOP_COUNT // // special loop count for benchmarking
+#define BENCHMARK_LOOP_COUNT // special loop count for benchmarking
 //#define TEST_TD512 // invokes test_td512_1to512
+
+#ifdef TD512_TEST_MODE
+extern uint32_t gExtendedStringCnt;
+extern uint32_t gExtendedTextCnt;
+extern uint32_t gtd64Cnt;
+#endif
 
 int32_t test_td512_1to512(void)
 {
@@ -63,7 +67,7 @@ RUN_512:
     }
     if (textData[0] == 'i')
     {
-        // set all values to 0x83 and run again
+        // set all values to same value and run again
         memset(textData, 0x91, sizeof(textData));
         goto RUN_512;
     }
@@ -90,7 +94,7 @@ int main(int argc, char* argv[])
     int loopCnt; // argv[4] option: default is 1
     uint32_t blockSize=512; // block size to use when iterating through file
     
-    printf("tiny data compression td512 %s   block size: %d\n", TD64_VERSION, blockSize);
+    printf("tiny data compression td512 %s   block size: %d\n", TD512_VERSION, blockSize);
 #ifdef TEST_TD512
     int32_t retVal;
     if ((retVal=test_td512_1to512()) != 0) // do check of 1 to 512 values
@@ -124,7 +128,7 @@ int main(int argc, char* argv[])
     fclose(ifile);
     
     // allocate "uncompressed size" + 3 bytes per block for the destination buffer
-    dst = (unsigned char*) malloc(len + 3 * (len / blockSize + 1));
+    dst = (unsigned char*) malloc(len + 4 * (len / blockSize + 1));
     if (argc >= 3)
     {
         sscanf(argv[2], "%d", &loopCnt);
@@ -135,9 +139,9 @@ int main(int argc, char* argv[])
     {
         loopCnt = 1;
     }
-#ifdef BENCHMARK_LOOP_COUNT // // special loop count for benchmarking
+#ifdef BENCHMARK_LOOP_COUNT // special loop count for benchmarking
     loopCnt = 100000000 / len;
-    loopCnt = (loopCnt < 20) ? 20 : loopCnt;
+    loopCnt = (loopCnt < 20) ? 10 : loopCnt;
     loopCnt = (loopCnt > 2000) ? 2000 : loopCnt;
 #endif
     loopNum = 0;
@@ -154,7 +158,7 @@ COMPRESS_LOOP:
     while (nBytesRemaining > 0)
     {
         uint32_t nBlockBytes=(uint32_t)nBytesRemaining>=blockSize ? blockSize : (uint32_t)nBytesRemaining;
-            nCompressedBytes = td512(src+srcBlockOffset, dst+dstBlockOffset, nBlockBytes);
+        nCompressedBytes = td512(src+srcBlockOffset, dst+dstBlockOffset, nBlockBytes);
         if (nCompressedBytes < 0)
             exit(nCompressedBytes); // error occurred
         nBytesRemaining -= nBlockBytes;
@@ -173,12 +177,17 @@ COMPRESS_LOOP:
     }
     timeSpent = minTimeSpent;
     printf("compression=%.02f%%  %.00f bytes per second inbytes=%lu outbytes=%u\n", (float)100*(1.0-((float)totalCompressedBytes/(float)len)), (float)len/(float)timeSpent, len, totalCompressedBytes);
+#ifdef TD512_TEST_MODE
+    double totalBlocks=gExtendedTextCnt+gExtendedStringCnt+gtd64Cnt;
+    printf("TD512_TEST_MODE\n   Extended text mode=%.01f%%   Extended string mode= %.01f%%   td64 =%.01f%%\n", (float)gExtendedTextCnt/totalBlocks*100, (float)gExtendedStringCnt/totalBlocks*100, (float)gtd64Cnt/totalBlocks*100);
+#endif
 
     fwrite(dst, totalCompressedBytes, 1, ofile);
     fclose(ofile);
     free(src);
     free(dst);
     
+    // **********************
     // decompress
     ifile = fopen(ofileName, "rb");
     strcpy(ofileName, argv[1]);
@@ -194,6 +203,7 @@ COMPRESS_LOOP:
     fread(src, 1, len3, ifile);
     len2 = len; // output==input
     dst = (unsigned char*) malloc(len2);
+    fclose(ifile);
     
     minTimeSpent=600;
     loopNum = 0;
@@ -208,6 +218,8 @@ DECOMPRESS_LOOP:
     {
         int32_t nRetBytes;
         nRetBytes = td512d(src+srcBlockOffset, dst+dstBlockOffset, &bytesProcessed);
+        if (nRetBytes != 512)
+            nRetBytes = nRetBytes;
         if (nRetBytes < 0)
             return nRetBytes;
         nBytesRemaining -= bytesProcessed;
@@ -227,7 +239,27 @@ DECOMPRESS_LOOP:
     timeSpent = minTimeSpent;
     printf("decompression=%.00f bytes per second inbytes=%lu outbytes=%lu\n", (float)len/(float)timeSpent, len3, len);
     fwrite(dst, len, 1, ofile);
-    fclose(ifile);
     fclose(ofile);
+    free(src);
+    // verify original input file with decompressed output
+    ifile = fopen(argv[1], "rb");
+    if (!ifile)
+    {
+        printf("td512 error: file not found to verify with decompressed output file: %s\n", argv[1]);
+        return 9;
+    }
+    // allocate source buffer and read file
+    src = (unsigned char*) malloc(len);
+    fread(src, 1, len, ifile);
+    fclose(ifile);
+    if ((memcmp(src, dst, len)) != 0)
+    {
+        printf("td512 error: decompressed file differs from original input file\n");
+        free(src);
+        free(dst);
+        return 11;
+    }
+    free(src);
+    free(dst);
     return 0;
 }

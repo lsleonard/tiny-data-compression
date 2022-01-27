@@ -24,8 +24,6 @@
 #include "tdString.h"
 #include "td64_internal.h"
 
-#define STRING_LIMIT 9 // for 128+ values set to 17
-#define EXTENDED_STRING_LENGTH_BITS 3 // for 128+ values, use 4
 #define MAX_STRING_MODE_EXTENDED_VALUES 512
 
 static inline void esmOutputBits(unsigned char *outValsT, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
@@ -59,7 +57,10 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     unsigned char outValsT[MAX_STRING_MODE_EXTENDED_VALUES];
     uint32_t maxUniquesExceeded=0;
     uint32_t highBitClear;
-    
+    // smaller values compress slightly better with string limit of 9 versus 17
+    const uint32_t string_limit=nValuesMax<=64 ? 9 : 17;
+    const uint32_t extended_string_length_bits=nValuesMax<=64 ? 3 : 4;
+
     if (nValuesMax > MAX_STRING_MODE_EXTENDED_VALUES)
         return -1;
     nextOutIx = 0; // start of encoding in outValsT
@@ -191,8 +192,8 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             uint32_t strLimit = inPos - 1 - twoValsPos; // don't take string past current input pos
             if (nValuesMax-strPos < strLimit)
                 strLimit = nValuesMax - strPos; // don't go past end of input
-            if (strLimit > STRING_LIMIT-2)
-                strLimit = STRING_LIMIT-2;
+            if (strLimit > string_limit-2)
+                strLimit = string_limit-2;
             
             uint32_t strCount=0;
             while(strCount++ < strLimit && inVals[strPos] == inVals[twoValsPos])
@@ -201,7 +202,7 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                 twoValsPos++;
             }
             // output 11 plus string length bits
-            esmOutputBits(outValsT, 2+EXTENDED_STRING_LENGTH_BITS, 3 | ((strCount-1)<<2), &nextOutIx, &nextOutBit);
+            esmOutputBits(outValsT, 2+extended_string_length_bits, 3 | ((strCount-1)<<2), &nextOutIx, &nextOutBit);
             // output the position of string
             if (encodingBits512[inPos-1] > 8)
             {
@@ -313,6 +314,8 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     unsigned char uncompressedUniques[MAX_UNIQUES_EXTENDED_STRING_MODE];\
     uint32_t secondByte=inVals[1]; // bits= 0:5 nUniques  6 first encoding bit  7 compressed or not
     uint32_t nUniquesIn=(secondByte & 0x3f) + 1;
+    // smaller values compress slightly better with string limit of 9 versus 17
+    const uint32_t extended_string_length_bits=nOriginalValues<=64 ? 3 : 4;
 
     // process one of three encodings:
     // 0   new unique value
@@ -405,7 +408,7 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                     bitPos = 0;
                 }
                 // multi-character string: length, then location of values in bits needed to code current pos
-                dsmGetBits2(inVals, EXTENDED_STRING_LENGTH_BITS, &thisInVal, &thisVal, &bitPos, &theBits);
+                dsmGetBits2(inVals, extended_string_length_bits, &thisInVal, &thisVal, &bitPos, &theBits);
                 uint32_t stringLen = (uint32_t)theBits + 2;
                 assert(stringLen <= STRING_LIMIT);
                 uint32_t nPosBits = encodingBits512[nextOutVal];

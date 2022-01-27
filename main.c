@@ -218,8 +218,6 @@ DECOMPRESS_LOOP:
     {
         int32_t nRetBytes;
         nRetBytes = td512d(src+srcBlockOffset, dst+dstBlockOffset, &bytesProcessed);
-        if (nRetBytes != 512)
-            nRetBytes = nRetBytes;
         if (nRetBytes < 0)
             return nRetBytes;
         nBytesRemaining -= bytesProcessed;

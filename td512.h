@@ -29,6 +29,13 @@
  3. In main.c, after decompression, the input file is verified against
     the decompressed output file.
 */
+// Note for version 2.1.2:
+/*
+ 1. In tdString.c, make the definition of string length and associated
+    number of bits based on number of input values. For <= 64 values,
+    length is 9 and bits are 3. For > 64 values, length is 17 and
+    bits are 4. Longer strings are likely to be found in larger data sets.
+ */
 #ifndef td512_h
 #define td512_h
 
@@ -36,7 +43,7 @@
 #include "tdString.h"
 #include <unistd.h>
 
-#define TD512_VERSION "v2.1.1"
+#define TD512_VERSION "v2.1.2"
 #define MIN_VALUES_EXTENDED_MODE 128
 #define MIN_UNIQUES_SINGLE_VALUE_MODE_CHECK 14
 #define MIN_VALUES_TO_COMPRESS 16

@@ -51,7 +51,7 @@ const uint32_t textChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-uint32_t checkSingleValueMode(const unsigned char *inVals)
+uint32_t checkSingleValueMode(const unsigned char *inVals, unsigned char *tempOutVals)
 {
     unsigned char val256[256]={0};
     uint32_t count[MAX_TD64_BYTES]={0};
@@ -75,11 +75,13 @@ uint32_t checkSingleValueMode(const unsigned char *inVals)
     {
         // single value mode works for up to 46 uniques, but files with repeating values, such as paper-100k.pdf, compress better using string mode
         int32_t retBits;
+        int32_t retBitstd64;
         uint32_t nValuesRead;
-        unsigned char tempOutVals[70];
         retBits = encodeExtendedStringMode(inVals, tempOutVals, 64, &nValuesRead);
-        if (retBits > (td64(inVals, tempOutVals, 64)))
-            return 1; // pick td64 if it compresses better
+        if (retBits <= 0)
+            return 1; // process this block with td64
+        if (retBits > (retBitstd64=td64(inVals, tempOutVals, 64)))
+            return retBitstd64; // pick td64 if it compresses better and return compressed values
     }
     return 0;
 } // end checkSingleValueMode
@@ -92,14 +94,13 @@ uint32_t checkTextMode(const unsigned char *inVals, uint32_t nValues, uint32_t *
     uint32_t charCount=0;
     uint32_t predefinedCharCount=0;
     uint32_t thisHighBitCheck=0;
-    uint32_t i;
+    uint32_t i=0;
     
-    for (i=0; i<16; i++)
+    while (i<16)
     {
-        const uint32_t inVal=inVals[i];
+        const uint32_t inVal=inVals[i++];
         if (inVal & 0x80)
             return 0; // return as quickly as possible if not mostly 7-bit values
-        thisHighBitCheck |= inVal;
         charCount += textChars[inVal];
         predefinedCharCount += predefinedBitTextChars[inVal];
     }
@@ -189,9 +190,9 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
     while (nBytesRemaining >= MIN_VALUES_TO_COMPRESS)
     {
         //uint32_t infoByte=0;
-        if (nBytesRemaining < 128 || td64on)
+        if (nBytesRemaining < MIN_VALUES_EXTENDED_MODE || td64on)
         {
-            nBlockBytes = nBytesRemaining <=64 ? nBytesRemaining : 64;
+            nBlockBytes = nBytesRemaining <=MAX_TD64_BYTES ? nBytesRemaining : MAX_TD64_BYTES;
             if ((retBits=td64(inVals+inputOffset, outVals+outputOffset, nBlockBytes)) < 0)
                 return retBits; // error occurred
             if (retBits == 0)
@@ -236,6 +237,7 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
                 {
                     // too many non-predefined chars to compress
                     // fail the first 128 chars and continue with td64
+                    // 128 is an arbitrary value, but enough failure to find new data
                     passFailBit <<= 1;
                     memcpy(outVals+outputOffset, inVals+inputOffset, 128);
                     retBytes += 128;
@@ -256,13 +258,28 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
                 nBytesRemaining = 0; // all values processed
                 continue;
             } // end text mode processing
-            if (checkSingleValueMode(inVals))
+            unsigned char tempOutVals[MAX_TD64_BYTES];
+            if ((retBits=checkSingleValueMode(inVals, tempOutVals)))
             {
-                // process input values in 64-byte blocks to use single value mode or process input with > 32 uniques in 64 bytes
-                td64on = 1;
+                // determine data best handled by td64
 #ifdef TD512_TEST_MODE
                 gtd64Cnt++;
 #endif
+                if (retBits > 1)
+                {
+                    // use the values from check to td64
+                    passFail |= passFailBit;
+                    bytesProcessed = (uint32_t)retBits / 8;
+                    if (retBits & 7)
+                        bytesProcessed++;
+                    memcpy(outVals+outputOffset, tempOutVals, bytesProcessed);
+                    retBytes += bytesProcessed;
+                    nBytesRemaining -= MAX_TD64_BYTES;
+                    passFailBit <<= 1;
+                    inputOffset += MAX_TD64_BYTES;
+                    outputOffset += bytesProcessed;
+                }
+                td64on = 1;
                 continue;
             }
             // use extended string mode

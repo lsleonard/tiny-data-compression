@@ -1486,7 +1486,27 @@ static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBits
     *theBits &= 0xff >> (8-nBitsToGet);
 } // end dtbmGetBits
 
-static uint32_t bitTextCharIx[128]={4,0,5,1,6,0,7,2,8,0,9,0,10,0,11,3,12,0,13,0,14,0,15,0,16,0,17,0,18,0,19,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,20,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,22,0};
+static const uint32_t textDecodePos[128]={
+    4,0,5,1,6,0,7,2,8,0,9,1,10,0,11,3,12,
+    0,13,1,14,0,15,2,16,0,17,1,18,0,19,3,4,
+    0,5,1,6,0,7,2,8,0,9,1,10,0,11,3,12,
+    0,13,1,14,0,15,2,16,0,17,1,18,0,20,3,4,
+    0,5,1,6,0,7,2,8,0,9,1,10,0,11,3,12,
+    0,13,1,14,0,15,2,16,0,17,1,18,0,21,3,4,
+    0,5,1,6,0,7,2,8,0,9,1,10,0,11,3,12,
+    0,13,1,14,0,15,2,16,0,17,1,18,0,22,3
+};
+    
+static const uint32_t textDecodeBits[128]={
+    5,3,5,3,5,0,5,4,5,3,5,3,5,3,5,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,7,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,5,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,7,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,5,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,7,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,5,4,5,
+    3,5,3,5,3,5,4,5,3,5,3,5,3,7,4
+};
 
 int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 {
@@ -1502,7 +1522,7 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
     uint32_t theBits;
     const uint32_t *pTextChars; // points to text chars encoded with
     const uint32_t input7or8=(inVals[0] & 0x80) ? 7 : 8; // high bit of info bit indicates whether unreplaced values output as 7 or 8 bits
-        
+    
     if ((inVals[0] & 0x3f) == 0x17)
         pTextChars = XMLTextChars;
     else if ((inVals[0] & 0x3f) == 0x27)
@@ -1516,26 +1536,16 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
         dtbmPeekBits(inVals, 7, thisInValIx, bitPos, &theBits);
         if ((theBits & 7) == 5)
         {
-            // original value, get 7 or 8 more bits
+            // skip three bits, get 7 or 8 more bits and output original value
             dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos);
             dtbmGetBits(inVals, input7or8, &thisInValIx, &bitPos, &theBits);
             outVals[nextOutVal++] = (unsigned char)theBits;
         }
         else
         {
-            // text char is one of 23 values encoded in 7 bits
-            // number of bits is
-            // 001 = 3
-            // 011 = 3
-            // x111 = 4
-            // xxxx0 = 5
-            // x11110 = 7
-            uint32_t nBits = 3 + ((theBits & 7) == 7) + (((theBits & 1) == 0)<<1) + (((theBits & 0x1f) == 0x1e)<<1);
-            theBits &= 0xff >> (8-nBits); // reduce the bits to those that apply
-            const uint32_t textOffset=bitTextCharIx[theBits];
-            assert(textOffset<MAX_PREDEFINED_FREQUENCY_CHAR_COUNT);
-            outVals[nextOutVal++] = (unsigned char)pTextChars[textOffset];
-            dtbmSkipBits(inVals, nBits, &thisInValIx, &bitPos);
+            // output the corresponding text char and skip corresponding number of bits
+            outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[theBits]];
+            dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos);
         }
     }
     *bytesProcessed = thisInValIx + (bitPos > 0);

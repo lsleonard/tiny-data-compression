@@ -36,6 +36,11 @@
     length is 9 and bits are 3. For > 64 values, length is 17 and
     bits are 4. Longer strings are likely to be found in larger data sets.
  */
+// Note for version 2.1.3:
+/*
+ 1. In td512.c, modified checkSingleValueMode to use the output of td64 call when possible.
+ 2. In td64.c, changed decodeAdaptiveTextMode to use arrays of bit positions and bits taken to maximize execution speed.
+ */
 #ifndef td512_h
 #define td512_h
 

@@ -90,7 +90,7 @@ uint32_t checkTextMode(const unsigned char *inVals, uint32_t nValues, uint32_t *
 {
     // try to determine whether this data should be compressed with extended text mode
     if (nValues < 128)
-        return 0; // expecting at last 128 values
+        return 0; // expecting at least 128 values
     uint32_t charCount=0;
     uint32_t predefinedCharCount=0;
     uint32_t thisHighBitCheck=0;

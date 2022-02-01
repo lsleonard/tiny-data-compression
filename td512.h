@@ -29,17 +29,26 @@
  3. In main.c, after decompression, the input file is verified against
     the decompressed output file.
 */
-// Note for version 2.1.2:
+// Notes for version 2.1.2:
 /*
  1. In tdString.c, make the definition of string length and associated
     number of bits based on number of input values. For <= 64 values,
     length is 9 and bits are 3. For > 64 values, length is 17 and
     bits are 4. Longer strings are likely to be found in larger data sets.
  */
-// Note for version 2.1.3:
+// Notes for version 2.1.3:
 /*
  1. In td512.c, modified checkSingleValueMode to use the output of td64 call when possible.
  2. In td64.c, changed decodeAdaptiveTextMode to use arrays of bit positions and bits taken to maximize execution speed.
+ */
+// Notes for version 2.1.4:
+/*
+ 1. In tdstring.c, continue processing after 64 unique values encountered for
+    up to 64 additional non-unique values that are output as if they are
+    unique values but are not indexed for string matching. The initial 64
+    unique values continue to be used. This improves compression for files
+    with larger numbers of unique values, and reduces compression for some
+    other files. The net result is better average compression.
  */
 #ifndef td512_h
 #define td512_h
@@ -48,7 +57,7 @@
 #include "tdString.h"
 #include <unistd.h>
 
-#define TD512_VERSION "v2.1.2"
+#define TD512_VERSION "v2.1.4"
 #define MIN_VALUES_EXTENDED_MODE 128
 #define MIN_UNIQUES_SINGLE_VALUE_MODE_CHECK 14
 #define MIN_VALUES_TO_COMPRESS 16

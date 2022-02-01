@@ -28,7 +28,7 @@
 #include <assert.h>
 
 #define MAX_UNIQUES_EXTENDED_STRING_MODE 64
-
+#define MAX_TOTAL_UNIQUES_EXTENDED_STRING_MODE 128
 // number of encoding bits needed for an index value from 0 to 511
 static const uint32_t encodingBits512[512]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
     5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,

@@ -53,18 +53,17 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     uint32_t twoValsPoss[64*64]; // position in input of first occurrence of corresponding two unique values of up to 64
     uint32_t twoValsPos;
     uint32_t nextOutIx;
-    uint32_t nextOutBit=0; // start of encoding after first two inputs
+    uint32_t nextOutBit=1; // start of encoding after first two inputs
     unsigned char outValsT[MAX_STRING_MODE_EXTENDED_VALUES];
     uint32_t maxUniquesExceeded=0;
     uint32_t highBitClear;
     // smaller values compress slightly better with string limit of 9 versus 17
     const uint32_t string_limit=nValuesMax<=64 ? 9 : 17;
     const uint32_t extended_string_length_bits=nValuesMax<=64 ? 3 : 4;
-
     if (nValuesMax > MAX_STRING_MODE_EXTENDED_VALUES)
-        return -1;
+        return -100;
+    outVals[1] = 0; // init second info byte
     nextOutIx = 0; // start of encoding in outValsT
-    outValsT[0] = 0; // init byte in process to 0
     // output encoding of first two values in outVals starting at third bit in second byte
     //    first bit is last bit of unique count, second is whether
     //    uniques are compressed
@@ -86,7 +85,7 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             twoValsPoss[1] = 3; // set position to two past second value
         }
         // output 1 to indicate first unique value repeated
-        outVals[1] = 64; // 1=repeat for second value
+        outValsT[0] = 1; // 1 for first encoding bit
     }
     else
     {
@@ -112,42 +111,60 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
         // set up new two value in 2nd position
         twoVals[1] = 1 << UOinPos2;
         twoValsPoss[64 | UOinPos2] = 3; // set position to two past second value
-        outVals[1] = 0; // 0=encode first two uniques
+        outValsT[0] = 0; // for first encoding bit
     }
+    uint32_t nUniqueBits=1; // bits to encode current number of uniques
+    uint32_t nextInVal=inVals[2];
     inPos=2; // start loop after init of first two values
     const uint32_t lastPos=nValuesMax-1;
     while (inPos < lastPos)
     {
-        if (nextOutIx+nUniques > lastPos)
-        {
-            *nValuesOut = inPos - 1; // processed through last inPos
-            return 0;
-        }
-        inVal = inVals[inPos++]; // inPos inc'd to next position
-        uint32_t UOinVal=uniqueOccurrence[inVal];
+        inVal = nextInVal; // set this val already retrieved value
+        nextInVal = inVals[++inPos]; // inPos inc'd to next position
+        const uint32_t UOinVal=uniqueOccurrence[inVal];
         uint32_t UOinValsInPosP1;
         if (val256[inVal] == 0)
         {
             // set up for new unique in this position
-            if (nUniques == MAX_UNIQUES_EXTENDED_STRING_MODE)
+            // uniques > 64 are output as uniques but are not considered for processing
+            if (nextOutIx+nUniques > lastPos)
             {
-                // exceeded uniques: set nValuesOut to current position (1 origin) that will get output as last char in output
-                maxUniquesExceeded = inPos;
+                *nValuesOut = inPos - 1; // processed through last inPos
+                return 0;
+            }
+            if (nUniques < MAX_UNIQUES_EXTENDED_STRING_MODE)
+            {
+                uniqueOccurrence[inVal] = nUniques;
+                val256[inVal] = 1;
+                nUniqueBits = encodingBits512[nUniques];
+                if (val256[nextInVal] == 0)
+                {
+                    if (nUniques < MAX_UNIQUES_EXTENDED_STRING_MODE-1)
+                    {
+                        // set up for all except last unique
+                        UOinValsInPosP1 = nUniques + 1; // use but don't set up
+                        twoVals[nUniques] = 1llu << UOinValsInPosP1;
+                        // set position of these two vals one past second value
+                        twoValsPoss[(nUniques<<6) | UOinValsInPosP1] = inPos + 1;
+                    }
+                    else
+                    {
+                        twoVals[nUniques] = 0; // init without assigning a next value for last unique
+                    }
+                }
+                else
+                {
+                    // set up pair of this value and next
+                    UOinValsInPosP1 = uniqueOccurrence[nextInVal];
+                    twoVals[nUniques] = 1llu << UOinValsInPosP1;
+                    twoValsPoss[(nUniques<<6) | UOinValsInPosP1] = inPos + 1;
+                }
+            }
+            else if (nUniques == 128)
+            {
+                maxUniquesExceeded = inPos; // 129th unique to be output
                 break;
             }
-            uniqueOccurrence[inVal] = nUniques;
-            val256[inVal] = 1;
-            if (val256[inVals[inPos]] == 0)
-            {
-                UOinValsInPosP1 = nUniques + 1; // use but don't set up
-            }
-            else
-            {
-                UOinValsInPosP1 = uniqueOccurrence[inVals[inPos]];
-            }
-            twoVals[nUniques] = 1llu << UOinValsInPosP1;
-            // set position of these two vals one past second value
-            twoValsPoss[(nUniques<<6) | UOinValsInPosP1] = inPos + 1;
             nUniques++;
             highBitClear |= inVal;
             // output a 0 to indicate new unique
@@ -157,24 +174,26 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                 outValsT[++nextOutIx] = 0;
                 nextOutBit = 0;
             }
-            outVals[nUniques+1] = (unsigned char)inVal; // save unique in list at front of outVals starting in third position
+            outVals[nUniques+1] = (unsigned char)inVal; // save unique or any value encountered beyond 64 uniques in list at front of outVals starting in third position
             continue;
         }
         // this character occurred before: look for repetition of next character
-        if (val256[inVals[inPos]] == 0)
+        if (val256[nextInVal] == 0)
         {
             // new unique in next pos so output a repeated value for current position
-            UOinValsInPosP1 = nUniques; // will be set to next unique on next loop
-            // repeated value: 01
-            // save new pair of this value and next
-            twoVals[UOinVal] |= 1llu << UOinValsInPosP1;
-            twoValsPoss[(UOinVal<<6) | UOinValsInPosP1] = inPos + 1;
+            if (nUniques < MAX_UNIQUES_EXTENDED_STRING_MODE)
+            {
+                // set up pair with this unique and next value
+                UOinValsInPosP1 = nUniques; // will be set to next unique on next loop
+                twoVals[UOinVal] |= 1llu << UOinValsInPosP1;
+                twoValsPoss[(UOinVal<<6) | UOinValsInPosP1] = inPos + 1;
+            }
             // output repeated value: 01 plus unique occurrence
-            esmOutputBits(outValsT, 2 + encodingBits512[nUniques-1], 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
+            esmOutputBits(outValsT, 2 + nUniqueBits, 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
             continue;
         }
-        uint64_t TVuniqueOccurrence=twoVals[UOinVal];
-        UOinValsInPosP1 = uniqueOccurrence[inVals[inPos]];
+        const uint64_t TVuniqueOccurrence=twoVals[UOinVal];
+        UOinValsInPosP1 = uniqueOccurrence[nextInVal];
         if (TVuniqueOccurrence & (1llu << UOinValsInPosP1))
         {
             // found pair of matching values using next input value
@@ -184,17 +203,15 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             {
                 // two vals include first value so this is a repeat
                 // output repeated value: 01 plus unique occurrence
-                esmOutputBits(outValsT, 2+encodingBits512[nUniques-1], 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
+                esmOutputBits(outValsT, 2+nUniqueBits, 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
                 continue;
             }
-            
             uint32_t strPos=inPos+1;
             uint32_t strLimit = inPos - 1 - twoValsPos; // don't take string past current input pos
             if (nValuesMax-strPos < strLimit)
                 strLimit = nValuesMax - strPos; // don't go past end of input
             if (strLimit > string_limit-2)
                 strLimit = string_limit-2;
-            
             uint32_t strCount=0;
             while(strCount++ < strLimit && inVals[strPos] == inVals[twoValsPos])
             {
@@ -204,18 +221,17 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             // output 11 plus string length bits
             esmOutputBits(outValsT, 2+extended_string_length_bits, 3 | ((strCount-1)<<2), &nextOutIx, &nextOutBit);
             // output the position of string
-            if (encodingBits512[inPos-1] > 8)
+                // output lowest bit and then remaining bits
+            const uint32_t outVal9=twoValsPos-strCount-1;
+            outValsT[nextOutIx] |= (outVal9 & 1) << nextOutBit;
+            if (++nextOutBit == 8)
             {
-                // output lowest bit and then remaining 8
-                uint32_t outVal9=twoValsPos-strCount-1;
-                esmOutputBits(outValsT, 1, outVal9&1, &nextOutIx, &nextOutBit);
-                esmOutputBits(outValsT, 8, outVal9>>1, &nextOutIx, &nextOutBit);
+                outValsT[++nextOutIx] = 0;
+                nextOutBit = 0;
             }
-            else
-            {
-                esmOutputBits(outValsT, encodingBits512[inPos-1], twoValsPos-strCount-1, &nextOutIx, &nextOutBit);
-            }
+            esmOutputBits(outValsT, encodingBits512[inPos-1]-1, outVal9>>1, &nextOutIx, &nextOutBit);
             inPos += strCount;
+            nextInVal = inVals[inPos];
         }
         else
         {
@@ -224,10 +240,9 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             twoVals[UOinVal] |= 1llu << UOinValsInPosP1;
             twoValsPoss[(UOinVal<<6) | UOinValsInPosP1] = inPos + 1;
             // output repeated value: 01 plus unique occurrence
-            esmOutputBits(outValsT, 2 + encodingBits512[nUniques-1], 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
+            esmOutputBits(outValsT, 2 + nUniqueBits, 1|(UOinVal<<2), &nextOutIx, &nextOutBit);
         }
     }
-    
     // output final bits
     if (nextOutBit > 0)
         nextOutIx++; // index past final bits
@@ -235,7 +250,7 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     {
         // occurs for both end of input on last pos -1 and for max uniques exceeded
         if (maxUniquesExceeded)
-            outValsT[nextOutIx++] = inVals[maxUniquesExceeded-1]; // output last byte that is 65th unique
+            outValsT[nextOutIx++] = inVals[maxUniquesExceeded-1]; // output last byte that is last unique encountered
         else
             outValsT[nextOutIx++] = inVals[lastPos]; // output last input byte
     }
@@ -246,7 +261,7 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     int32_t uniqueOffset;
     if ((highBitClear & 0x80) == 0 && *nValuesOut >= 16)
     {
-        unsigned char compressedUniques[MAX_UNIQUES_EXTENDED_STRING_MODE];
+        unsigned char compressedUniques[MAX_TOTAL_UNIQUES_EXTENDED_STRING_MODE];
         uniqueOffset = encode7bitsInternal(outVals+2, compressedUniques, nUniques);
         if (uniqueOffset > 0)
         {
@@ -266,10 +281,27 @@ int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
     }
     memcpy(outVals+uniqueOffset, outValsT, nextOutIx);
     outVals[0] = 0x7f; // indicate external string mode
-    outVals[1] |= nUniques-1; // number uniques in first 6 bits then first encoding bit and finally compressed uniques bit
-
+    outVals[1] |= nUniques-1; // number uniques in first 7 bits then compressed uniques bit
     return (int32_t)(nextOutIx+uniqueOffset) * 8;
 } // end encodeExtendedStringMode
+
+static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInVal, uint32_t *thisVal, uint32_t *bitPos, int32_t *theBits)
+{
+    // get 1 to 8 bits from inVals into theBits
+    *theBits = (int32_t)*thisVal >> (*bitPos);
+    if ((*bitPos += nBitsToGet) < 8)
+    {
+        // all bits in current value with bits to spare
+        *theBits &= bitMask[nBitsToGet];
+        return;
+    }
+    // bits split between two values with bits left (bitPos > 0)
+    *bitPos -= 8;
+    *thisVal = inVals[++(*thisInVal)];
+    *theBits |= (*thisVal) << (nBitsToGet-*bitPos);
+    *theBits &= bitMask[nBitsToGet];
+    return;
+} // end dsmGetBits
 
 static inline void dsmGetBits2(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInVal, uint32_t *thisVal, uint32_t *bitPos, int32_t *theBits)
 {
@@ -307,13 +339,13 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
 {
     uint32_t nextOutVal;
     uint32_t thisInVal; // position of encoded bits
-    uint32_t bitPos=0; // start decoding from bit 0
+    uint32_t bitPos=1; // start decoding from bit 0, but first bit 0 used to indicate whether first unique is repeated or not
     int32_t theBits;
     uint32_t nUniques; // running number of uniques
     const unsigned char *pUniques; // pointer to uniques
-    unsigned char uncompressedUniques[MAX_UNIQUES_EXTENDED_STRING_MODE];\
-    uint32_t secondByte=inVals[1]; // bits= 0:5 nUniques  6 first encoding bit  7 compressed or not
-    uint32_t nUniquesIn=(secondByte & 0x3f) + 1;
+    unsigned char uncompressedUniques[MAX_TOTAL_UNIQUES_EXTENDED_STRING_MODE];
+    uint32_t secondByte=inVals[1]; // bits= 0:6 nUniques 7 compressed or not
+    uint32_t nUniquesIn=(secondByte & 0x7f) + 1;
     // smaller values compress slightly better with string limit of 9 versus 17
     const uint32_t extended_string_length_bits=nOriginalValues<=64 ? 3 : 4;
 
@@ -339,13 +371,13 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
             return -21;
         if (ret7bits != nUniquesIn)
             return -21;
-        assert(ret7bits == nUniquesIn);
         thisInVal += 2; // point past initial byte for encoded bytes
     }
+    uint32_t thisVal = inVals[thisInVal]; // current coded byte
     // first value is always the first unique
     outVals[0] = pUniques[0]; // first val is always first unique
-    // encoding bit for first two values in seventh bit of second byte
-    if (secondByte & 64)
+    // encoding bit for first two values in first bit of encoded bytes
+    if (thisVal & 1)
     {
         // second value matches first
         outVals[1] = outVals[0];
@@ -357,26 +389,23 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
         outVals[1] = pUniques[1];
         nUniques = 2;
     }
+    uint32_t nUniqueBits = 1; // current number uniques determines 1-6 bits used: 1 bit for 1 or 2 uniques to start;
     nextOutVal=2; // start with third output value
     const uint32_t nOrigMinus1=nOriginalValues-1;
-    uint32_t thisVal = inVals[thisInVal];
     while (nextOutVal < nOrigMinus1)
     {
         if ((thisVal & (1 << (bitPos))) == 0)
         {
             // new unique value
-            if (bitPos == 7)
+            outVals[nextOutVal++] = pUniques[nUniques];
+            if (++bitPos == 8)
             {
                 // unique from start of input values
-                outVals[nextOutVal++] = pUniques[nUniques];
                 thisVal = inVals[++thisInVal];
                 bitPos = 0;
             }
-            else
-            {
-                outVals[nextOutVal++] = pUniques[nUniques];
-                bitPos++;
-            }
+            if (nUniques < MAX_UNIQUES_EXTENDED_STRING_MODE)
+                nUniqueBits = encodingBits512[nUniques]; // current number uniques determines 1-6 bits used
             nUniques++;
         }
         else
@@ -395,8 +424,7 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                     thisVal = inVals[++thisInVal];
                     bitPos = 0;
                 }
-                uint32_t nUniqueBits = encodingBits512[nUniques-1]; // current number uniques determines 1-6 bits used
-                dsmGetBits2(inVals, nUniqueBits, &thisInVal, &thisVal, &bitPos, &theBits);
+                dsmGetBits(inVals, nUniqueBits, &thisInVal, &thisVal, &bitPos, &theBits);
                 outVals[nextOutVal++] = pUniques[theBits]; // get uniques from start of inVals
             }
             else
@@ -408,14 +436,15 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                     bitPos = 0;
                 }
                 // multi-character string: length, then location of values in bits needed to code current pos
-                dsmGetBits2(inVals, extended_string_length_bits, &thisInVal, &thisVal, &bitPos, &theBits);
+                dsmGetBits(inVals, extended_string_length_bits, &thisInVal, &thisVal, &bitPos, &theBits);
                 uint32_t stringLen = (uint32_t)theBits + 2;
-                assert(stringLen <= STRING_LIMIT);
+                assert(stringLen <= (extended_string_length_bits==3 ? 9:17));
                 uint32_t nPosBits = encodingBits512[nextOutVal];
-                dsmGetBits2(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits);
+                if (nPosBits < 9)
+                    dsmGetBits(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits); // 8 or fewer bits
+                else
+                    dsmGetBits2(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits); // 9 bits
                 uint32_t stringPos=(uint32_t)theBits;
-                if (stringPos+stringLen > nextOutVal)
-                    return -51;
                 assert((uint32_t)stringPos+stringLen <= nextOutVal);
                 assert(nextOutVal+stringLen <= nOriginalValues);
                 memcpy(outVals+nextOutVal, outVals+stringPos, stringLen);

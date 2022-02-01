@@ -1067,9 +1067,6 @@ int32_t td64(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     if (nValues > MAX_TD64_BYTES)
         return -1; // only values 1 to 64 supported
     
-    //uint32_t nValuesOut;
-    //return encodeStringModeExtended(inVals, outVals, nValues, &nValuesOut);
-    
     uint32_t highBitCheck=0;
     uint32_t predefinedTextCharCnt=0; // count of text chars encountered
     uint32_t uniqueOccurrence[256]; // order of occurrence of uniques

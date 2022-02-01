@@ -43,12 +43,7 @@
  */
 // Notes for version 2.1.4:
 /*
- 1. In tdstring.c, continue processing after 64 unique values encountered for
-    up to 64 additional non-unique values that are output as if they are
-    unique values but are not indexed for string matching. The initial 64
-    unique values continue to be used. This improves compression for files
-    with larger numbers of unique values, and reduces compression for some
-    other files. The net result is better average compression.
+ 1. In tdstring.c, extended string mode, continue processing after 64 unique values encountered for up to 64 additional non-unique values that are output as if they are unique values but are not indexed for string matching. The initial 64 unique values continue to be used. This improves compression for files with larger numbers of unique values, and reduces compression for some other files. The net result is better average compression.
  */
 #ifndef td512_h
 #define td512_h

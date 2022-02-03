@@ -1,5 +1,5 @@
 # tiny-data-compression
-High-speed lossless tiny data compression of 16 to 512 bytes
+High-speed lossless data compression of 16 to 512 bytes
 
 td512 filename [loopCount]
    

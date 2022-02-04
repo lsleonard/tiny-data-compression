@@ -20,7 +20,6 @@
  You should have received a copy of the GNU General Public License
  along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
 #include "td512.h"
 #include "string.h"
 
@@ -30,12 +29,11 @@ uint32_t gExtendedTextCnt=0;
 uint32_t gtd64Cnt=0;
 #endif
 
-
 // use textChars to eliminate non-text values that have text chars
 const uint32_t textChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, // 0xA 0xD
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, // space ! " comma .
+    1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, // space ! " ' , .
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, // ?
     0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // A...O
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, // P...Z
@@ -51,12 +49,25 @@ const uint32_t textChars[256]={
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-uint32_t checkSingleValueMode(const unsigned char *inVals, unsigned char *tempOutVals)
+uint32_t checktd64(const unsigned char *inVals, unsigned char *tempOutVals)
 {
+    // return 0 to select extended string mode
+    //        1 to select td64
+    //        2 to select td64 after processing first 64 as random
     unsigned char val256[256]={0};
     uint32_t count[MAX_TD64_BYTES]={0};
+    uint32_t highBitCheck=0;
     uint32_t i=0;
     
+    while (i < 28)
+    {
+        // accumulate counts of uniques
+        const uint32_t inVal=inVals[i++];
+        count[val256[inVal]++]++;
+        highBitCheck |= inVal;
+    }
+    if (count[0] > 24 && highBitCheck & 0x80)
+        return 2; // assume random and process first 64 as such
     while (i < 64)
     {
         const uint32_t inVal=inVals[i++];
@@ -84,26 +95,30 @@ uint32_t checkSingleValueMode(const unsigned char *inVals, unsigned char *tempOu
             return retBitstd64; // pick td64 if it compresses better and return compressed values
     }
     return 0;
-} // end checkSingleValueMode
+} // end checktd64
 
 uint32_t checkTextMode(const unsigned char *inVals, uint32_t nValues, uint32_t *highBitCheck)
 {
     // try to determine whether this data should be compressed with extended text mode
-    if (nValues < 128)
-        return 0; // expecting at least 128 values
+    // return 0 to skip text mode
+    //        1 to use text mode
+    //        2 to use string mode
+    if (nValues < 96)
+        return 0; // expecting at least 96 values
     uint32_t charCount=0;
     uint32_t predefinedCharCount=0;
     uint32_t thisHighBitCheck=0;
     uint32_t i=0;
     
-    while (i<16)
+    while (i<8)
     {
         const uint32_t inVal=inVals[i++];
-        if (inVal & 0x80)
-            return 0; // return as quickly as possible if not mostly 7-bit values
+        thisHighBitCheck += inVal & 0x80;
         charCount += textChars[inVal];
         predefinedCharCount += predefinedBitTextChars[inVal];
     }
+    if (thisHighBitCheck > 0x80)
+        return 0; // allow only 1 extended text character
     // need more than 64 values to make a good determination about data
     while (i<96)
     {
@@ -113,9 +128,13 @@ uint32_t checkTextMode(const unsigned char *inVals, uint32_t nValues, uint32_t *
         thisHighBitCheck |= inVal;
     }
     if (charCount < 90)
+    {
+        if (charCount > 48)
+            return 2; // go to extended string mode
         return 0; // too few text chars
+    }
     if (predefinedCharCount < 72)
-        return 0; // too few predefined chars
+        return 2; // go to extended string mode
     if ((thisHighBitCheck & 0x80) == 0)
         while (i<nValues)
             thisHighBitCheck |= inVals[i++];
@@ -222,7 +241,8 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
         {
             // -------check if all input values can be handled together--------
             uint32_t highBitCheck;
-            if (checkTextMode(inVals, nBytesRemaining, &highBitCheck))
+            uint32_t checkTMret;
+            if ((checkTMret=checkTextMode(inVals, nBytesRemaining, &highBitCheck)) == 1)
             {
                 // process in extended text mode
                 unsigned char val256[256];
@@ -258,16 +278,30 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
                 nBytesRemaining = 0; // all values processed
                 continue;
             } // end text mode processing
+            
             unsigned char tempOutVals[MAX_TD64_BYTES];
-            if ((retBits=checkSingleValueMode(inVals, tempOutVals)))
+            if (checkTMret == 0 && (retBits=checktd64(inVals, tempOutVals)))
             {
                 // determine data best handled by td64
 #ifdef TD512_TEST_MODE
                 gtd64Cnt++;
 #endif
+                if (retBits == 2)
+                {
+                    // assume random data and fail first 64 bytes
+                    memcpy(outVals+outputOffset, inVals+inputOffset, MAX_TD64_BYTES);
+                    bytesProcessed = MAX_TD64_BYTES;
+                    retBytes += MAX_TD64_BYTES;
+                    passFailBit <<= 1;
+                    inputOffset += MAX_TD64_BYTES;
+                    outputOffset += bytesProcessed;
+                    nBytesRemaining -= MAX_TD64_BYTES;
+                    td64on = 1;
+                    continue;
+                }
                 if (retBits > 1)
                 {
-                    // use the values from check to td64
+                    // use the values from checktd64
                     passFail |= passFailBit;
                     bytesProcessed = (uint32_t)retBits / 8;
                     if (retBits & 7)
@@ -292,8 +326,7 @@ int32_t td512(const unsigned char *inVals, unsigned char *outVals, const uint32_
             outputOffset++;
             retBytes++;
             retBits = encodeExtendedStringMode(inVals+inputOffset, outVals+outputOffset, nValues, &nValuesRead);
-            if (nValues < nValuesRead)
-                return -44; // debug check
+            assert(nValues>=nValuesRead);
             if (retBits < 0)
                 return retBits;
             if (retBits == 0)
@@ -413,10 +446,7 @@ int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *to
         // 321 to 512 values
         nValues = ((firstByte >> 2) | (secondByte & 3) << 6) + 321;
     }
-    if (nValues != 512)
-        nValues = nValues;
     nBytesRemaining = nValues;
-    uint32_t extendedMode = (secondByte >> 2) & 3;
     if (nValues <= 256)
     {
         passFail = secondByte >> 4;
@@ -427,8 +457,17 @@ int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *to
         passFail = thirdByte;
         inputOffset++;
     }
-    if (extendedMode > 2)
-        return -22;
+    const uint32_t extendedMode = (secondByte >> 2) & 3;
+    assert(extendedMode <= 2);
+    if (passFail == 0)
+    {
+        // all tests failed, copy all original values to output
+        if (extendedMode == 2)
+            inputOffset++;
+        memcpy(outVals, inVals+inputOffset, nValues);
+        *totalBytesProcessed = inputOffset + nValues;
+        return (int32_t)nValues;
+    }
     if (nValues >= MIN_VALUES_EXTENDED_MODE)
     {
         if (extendedMode == 1)
@@ -439,13 +478,6 @@ int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *to
                 // decompress
                 blockRetBytes = decodeAdaptiveTextMode(inVals+inputOffset, outVals, nValues, &bytesProcessed);
                 nBytesRemaining = 0;
-            }
-            else if (passFail == 0)
-            {
-                // all tests failed, copy all original values to output
-                memcpy(outVals, inVals+inputOffset, nValues);
-                *totalBytesProcessed = inputOffset + nValues;
-                return (int32_t)nValues;
             }
             else
             {
@@ -476,13 +508,6 @@ int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *to
                 blockRetBytes=decodeExtendedStringMode(inVals+inputOffset, outVals+outputOffset, nValuesThisCall, &bytesProcessed);
                 if (blockRetBytes < 0)
                     return blockRetBytes; // error return
-            }
-            else if (passFail == 0)
-            {
-                // all tests failed, copy all original values to output
-                memcpy(outVals, inVals+inputOffset, nValues);
-                *totalBytesProcessed = inputOffset + nValues;
-                return (int32_t)nValues;
             }
             else
             {
@@ -521,7 +546,7 @@ int32_t td512d(const unsigned char *inVals, unsigned char *outVals, uint32_t *to
         }
         else
         {
-            // get uncompressed values
+            // output uncompressed values
             memcpy(outVals+outputOffset, inVals+inputOffset, nBlockVals);
             bytesProcessed = nBlockVals;
             blockRetBytes = (int32_t)nBlockVals;

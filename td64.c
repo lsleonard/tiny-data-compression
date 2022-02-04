@@ -1438,17 +1438,8 @@ static uint32_t dtbmThisInVal; // current input value
 
 static inline void dtbmPeekBits(const unsigned char *inVals, const uint32_t nBitsToPeak, uint32_t thisInValIx, uint32_t bitPos, uint32_t *theBits)
 {
+    // peek works for up to 8 bits, using next 8 bits already in dtbmThisInVal
     *theBits = dtbmThisInVal >> bitPos;
-    if ((bitPos += nBitsToPeak) < 8)
-    {
-        // all bits in current value with bits to spare
-        *theBits &= 0xff >> (8-nBitsToPeak);
-        return;
-    }
-    // next input: or in 0 to 7 bits
-    bitPos -= 8;
-    // when 0 bits, shifted past bits to get then anded off
-    *theBits |= inVals[++thisInValIx] << (nBitsToPeak-bitPos);
     *theBits &= 0xff >> (8-nBitsToPeak);
 } // end dtbmPeekBits
 
@@ -1462,7 +1453,8 @@ static inline void dtbmSkipBits(const unsigned char *inVals, const uint32_t nBit
     // next input: or in 0 to 7 bits
     *bitPos -= 8;
     // when 0 bits, shifted past bits to get then anded off
-    dtbmThisInVal = inVals[++(*thisInValIx)];
+    dtbmThisInVal >>= 8; // next val in upper byte
+    dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
 } // end dtbmSkipBits
 
 static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, uint32_t *theBits)
@@ -1476,7 +1468,8 @@ static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBits
         return;
     }
     // next input: or in 0 to 7 bits
-    dtbmThisInVal = inVals[++(*thisInValIx)];
+    dtbmThisInVal >>= 8; // next val in upper byte
+    dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
     *bitPos -= 8;
     // when 0 bits, shifted past bits to get then anded off
     *theBits |= dtbmThisInVal << (nBitsToGet-*bitPos);
@@ -1507,6 +1500,7 @@ static const uint32_t textDecodeBits[128]={
 
 int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nOriginalValues, uint32_t *bytesProcessed)
 {
+    // One byte is read ahead, which means that one byte is read beyond the input array, which requires allocation of one byte more that stored values. This can be addressed in a future version of the code.
     // Use these frequency-related bit encodings:
     // 101       value not in 23 text values, followed by 8-bit value
     // 011, 001  2 values of highest frequency
@@ -1527,6 +1521,7 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
     else
         pTextChars=extendedTextChars;
     dtbmThisInVal = inVals[thisInValIx]; // initialize to first input val to decode
+    dtbmThisInVal |= (uint32_t)inVals[thisInValIx+1] << 8; // keep next value handy for peek
     while (nextOutVal < nOriginalValues)
     {
         // peak at the next 7 bits to decide what to do
@@ -1541,10 +1536,16 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
         else
         {
             // output the corresponding text char and skip corresponding number of bits
+            if (textDecodePos[theBits] > 22)
+                return -87;
+            if (textDecodeBits[theBits] > 7)
+                return -86;
             outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[theBits]];
             dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos);
         }
     }
+    // To avoid reading past end of input values, stop main loop three characters before the end. The last three values will require at least 2 bytes (3*3) and up to 4 bytes (3*7).
+    // complete this section in a future version of the program. An alternative would be to add one byte to the end of output in encodeAdaptiveTextMode
     *bytesProcessed = thisInValIx + (bitPos > 0);
     return nextOutVal;
 } // end decodeAdaptiveTextMode

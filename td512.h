@@ -38,7 +38,7 @@
  */
 // Notes for version 2.1.3:
 /*
- 1. In td512.c, modified checkSingleValueMode to use the output of td64 call when possible.
+ 1. In td512.c, modified checktd64 to use the output of td64 call when possible.
  2. In td64.c, changed decodeAdaptiveTextMode to use arrays of bit positions and bits taken to maximize execution speed.
  */
 // Notes for version 2.1.4:
@@ -49,6 +49,12 @@
 /*
  1. In tdstring.c, implemented 64-bit output of encoded values to improve compression speed.
  */
+// Notes for version 2.1.6:
+/*
+ 1. In td512.c, modified checkTextMode to return a code that causes use of extended string mode and improves compression speed. Also added ' (quote) to the text chars array.
+ 2. In td512.c, modified checktd64 (name change from checkSingleValueMode) to return a code for expected random data to be processed as a failing block of 64 bytes in the same way that td64 would handle this block.
+ 3. In td64.c, modified decodeAdaptiveTextMode to read one byte ahead to improve speed of processing dtbmPeekBits. This change can require one byte read beyond length of input array.
+ */
 #ifndef td512_h
 #define td512_h
 
@@ -56,7 +62,7 @@
 #include "tdString.h"
 #include <unistd.h>
 
-#define TD512_VERSION "v2.1.5"
+#define TD512_VERSION "v2.1.6"
 #define MIN_VALUES_EXTENDED_MODE 128
 #define MIN_UNIQUES_SINGLE_VALUE_MODE_CHECK 14
 #define MIN_VALUES_TO_COMPRESS 16

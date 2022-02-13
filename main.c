@@ -30,6 +30,7 @@
 #include <string.h>
 
 #define BENCHMARK_LOOP_COUNT // special loop count for benchmarking
+#define EXTERNAL_LOOP_COUNT_MAX 2000
 //#define TEST_TD512 // invokes test_td512_1to512
 
 #ifdef TD512_TEST_MODE
@@ -94,7 +95,7 @@ int main(int argc, char* argv[])
     int loopCnt; // argv[4] option: default is 1
     uint32_t blockSize=512; // block size to use when iterating through file
     
-    printf("tiny data compression td512 %s   block size: %d\n", TD512_VERSION, blockSize);
+    printf("tiny data compression td512 %s\n", TD512_VERSION);
 #ifdef TEST_TD512
     int32_t retVal;
     if ((retVal=test_td512_1to512()) != 0) // do check of 1 to 512 values
@@ -132,7 +133,7 @@ int main(int argc, char* argv[])
     if (argc >= 3)
     {
         sscanf(argv[2], "%d", &loopCnt);
-        if (loopCnt < 1 || loopCnt > 1000)
+        if (loopCnt < 1)
             loopCnt = 1;
     }
     else
@@ -141,13 +142,21 @@ int main(int argc, char* argv[])
     }
 #ifdef BENCHMARK_LOOP_COUNT // special loop count for benchmarking
     loopCnt = 100000000 / len;
-    loopCnt = (loopCnt < 20) ? 10 : loopCnt;
-    loopCnt = (loopCnt > 2000) ? 2000 : loopCnt;
+    loopCnt = (loopCnt < 20) ? 20 : loopCnt;
 #endif
     loopNum = 0;
-    printf("   loop count=%d\n", loopCnt);
-    
+    uint32_t internalLoop;
+    internalLoop = 1;
+    uint32_t savedInternalLoopCnt = 1;
+    if (loopCnt > EXTERNAL_LOOP_COUNT_MAX)
+    {
+        savedInternalLoopCnt = loopCnt/EXTERNAL_LOOP_COUNT_MAX;
+        loopCnt = EXTERNAL_LOOP_COUNT_MAX;
+    }
+    printf("   block size= %d   loop count= %d*%d\n", blockSize, loopCnt, savedInternalLoopCnt);
+
 COMPRESS_LOOP:
+    internalLoop = savedInternalLoopCnt;
     nBytesRemaining=(int32_t)len;
     totalCompressedBytes=0;
     srcBlockOffset=0;
@@ -155,27 +164,38 @@ COMPRESS_LOOP:
 
     // compress and write result
     begin = clock();
-    while (nBytesRemaining > 0)
+    while (internalLoop > 0)
     {
-        uint32_t nBlockBytes=(uint32_t)nBytesRemaining>=blockSize ? blockSize : (uint32_t)nBytesRemaining;
-        nCompressedBytes = td512(src+srcBlockOffset, dst+dstBlockOffset, nBlockBytes);
-        if (nCompressedBytes < 0)
-            exit(nCompressedBytes); // error occurred
-        nBytesRemaining -= nBlockBytes;
-        totalCompressedBytes += (uint32_t)nCompressedBytes;
-        srcBlockOffset += nBlockBytes;
-        dstBlockOffset += (uint32_t)nCompressedBytes;
+        while (nBytesRemaining > 0)
+        {
+            uint32_t nBlockBytes=(uint32_t)nBytesRemaining>=blockSize ? blockSize : (uint32_t)nBytesRemaining;
+            nCompressedBytes = td512(src+srcBlockOffset, dst+dstBlockOffset, nBlockBytes);
+            if (nCompressedBytes < 0)
+                exit(nCompressedBytes); // error occurred
+            nBytesRemaining -= nBlockBytes;
+            totalCompressedBytes += (uint32_t)nCompressedBytes;
+            srcBlockOffset += nBlockBytes;
+            dstBlockOffset += (uint32_t)nCompressedBytes;
+        }
+        if (--internalLoop > 0)
+        {
+            // perform some loops within the timing structure
+            totalCompressedBytes = 0;
+            nBytesRemaining=(int32_t)len;
+            srcBlockOffset=0;
+            dstBlockOffset=0;
+        }
     }
     end = clock();
     timeSpent = (double)(end - begin) / (double)CLOCKS_PER_SEC;
-    if (timeSpent < minTimeSpent)
+    if (timeSpent < minTimeSpent && timeSpent > 1.e-10)
         minTimeSpent = timeSpent;
     if (++loopNum < loopCnt)
     {
         usleep(10); // sleep 10 us
         goto COMPRESS_LOOP;
     }
-    timeSpent = minTimeSpent;
+    timeSpent = minTimeSpent / savedInternalLoopCnt;
     printf("compression=%.02f%%  %.00f bytes per second inbytes=%lu outbytes=%u\n", (float)100*(1.0-((float)totalCompressedBytes/(float)len)), (float)len/(float)timeSpent, len, totalCompressedBytes);
 #ifdef TD512_TEST_MODE
     double totalBlocks=gExtendedTextCnt+gExtendedStringCnt+gtd64Cnt;
@@ -209,34 +229,45 @@ COMPRESS_LOOP:
     loopNum = 0;
 DECOMPRESS_LOOP:
     // decompress and write result
+    internalLoop = savedInternalLoopCnt;
     totalOutBytes = 0;
     nBytesRemaining = (int32_t)len3;
     srcBlockOffset = 0;
     dstBlockOffset = 0;
     begin = clock();
-    while (nBytesRemaining > 0)
+    while (internalLoop > 0)
     {
-        int32_t nRetBytes;
-        nRetBytes = td512d(src+srcBlockOffset, dst+dstBlockOffset, &bytesProcessed);
-        if (nRetBytes < 0)
-            return nRetBytes;
-        assert(nBytesRemaining>=blockSize?nRetBytes==blockSize:1);
-        nBytesRemaining -= bytesProcessed;
-        totalOutBytes += (uint32_t)nRetBytes;
-        srcBlockOffset += bytesProcessed;
-        dstBlockOffset += (uint32_t)nRetBytes;
+        while (nBytesRemaining > 0)
+        {
+            int32_t nRetBytes;
+            nRetBytes = td512d(src+srcBlockOffset, dst+dstBlockOffset, &bytesProcessed);
+            if (nRetBytes < 0)
+                return nRetBytes;
+            assert(nBytesRemaining>=blockSize?nRetBytes==blockSize:1);
+            nBytesRemaining -= bytesProcessed;
+            totalOutBytes += (uint32_t)nRetBytes;
+            srcBlockOffset += bytesProcessed;
+            dstBlockOffset += (uint32_t)nRetBytes;
+        }
+        if (--internalLoop > 0)
+        {
+            totalOutBytes = 0;
+            nBytesRemaining = (int32_t)len3;
+            srcBlockOffset = 0;
+            dstBlockOffset = 0;
+        }
     }
     end = clock();
     timeSpent = (double)(end - begin) / (double)CLOCKS_PER_SEC;
-    if (timeSpent < minTimeSpent)
+    if (timeSpent < minTimeSpent && timeSpent > 1.e-10)
         minTimeSpent = timeSpent;
     if (++loopNum < loopCnt)
     {
         usleep(10); // sleep 10 us
         goto DECOMPRESS_LOOP;
     }
-    timeSpent = minTimeSpent;
-    printf("decompression=%.00f bytes per second inbytes=%lu outbytes=%lu\n", (float)len/(float)timeSpent, len3, len);
+    timeSpent = minTimeSpent / savedInternalLoopCnt;
+    printf("decompression=%.00f bytes per second inbytes=%lu outbytes=%u\n", (float)len/(float)timeSpent, len3, totalOutBytes);
     fwrite(dst, len, 1, ofile);
     fclose(ofile);
     free(src);
@@ -256,7 +287,7 @@ DECOMPRESS_LOOP:
         printf("td512 error: decompressed file differs from original input file\n");
         free(src);
         free(dst);
-        return 11;
+        return 31;
     }
     free(src);
     free(dst);

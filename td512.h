@@ -55,6 +55,12 @@
  2. In td512.c, modified checktd64 (name change from checkSingleValueMode) to return a code for expected random data to be processed as a failing block of 64 bytes in the same way that td64 would handle this block.
  3. In td64.c, modified decodeAdaptiveTextMode to read one byte ahead to improve speed of processing dtbmPeekBits. This change can require one byte read beyond length of input array.
  */
+// Notes for version 2.1.7:
+/*
+ 1. In main.c, changed benchmarking to have max of 2000 external loops under timer with remaining loops run inside timer.
+ 2. In td64.c, decodeAdaptiveTextMode, made dtbmThisVal internal to function rather than static global. Added a read-ahead byte so that peaking at bits does not require an extra read. The read-ahead means main loop must stop three values early to avoid reading beyond end of input values, and those three values must be processed without read-ahead.
+ 3. In td64.c, decodeStringMode, made dsmThisVal internal to function rather than static global.
+ */
 #ifndef td512_h
 #define td512_h
 
@@ -62,7 +68,7 @@
 #include "tdString.h"
 #include <unistd.h>
 
-#define TD512_VERSION "v2.1.6"
+#define TD512_VERSION "v2.1.7"
 #define MIN_VALUES_EXTENDED_MODE 128
 #define MIN_UNIQUES_SINGLE_VALUE_MODE_CHECK 14
 #define MIN_VALUES_TO_COMPRESS 16

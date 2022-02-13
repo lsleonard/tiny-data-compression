@@ -830,7 +830,7 @@ int32_t encodeSingleValueMode(const unsigned char *inVals, unsigned char *outVal
     {
         uint32_t firstNonSingle=(nValues-1)/8+3; // skip single value itself
         uint32_t nNSV=nextOutVal-firstNonSingle+1;
-        if (nNSV >= 16)
+        if (nNSV >= MIN_STRING_MODE_EXTENDED_VALUES)
         {
             unsigned char outTemp[64];
             int32_t retBits;
@@ -1071,7 +1071,7 @@ int32_t td64(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     uint32_t predefinedTextCharCnt=0; // count of text chars encountered
     uint32_t uniqueOccurrence[256]; // order of occurrence of uniques
     uint32_t nUniqueVals=0; // count of unique vals encountered
-    unsigned char val256[256]={0}; // init characters found to 0
+    uint8_t val256[256]={0}; // init characters found to 0
     const uint32_t uniqueLimit=uniqueLimits25[nValues]; // if exceeded, cannot use fixed bit coding
 
     // process enough input vals to eliminate most random data and to check for text mode
@@ -1434,16 +1434,14 @@ int32_t td64(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     return -6; // unexpected program error
 } // end td64
 
-static uint32_t dtbmThisInVal; // current input value
-
-static inline void dtbmPeekBits(const unsigned char *inVals, const uint32_t nBitsToPeak, uint32_t thisInValIx, uint32_t bitPos, uint32_t *theBits)
+static inline void dtbmPeekBits(const uint32_t nBitsToPeak, uint32_t bitPos, uint32_t *theBits, uint32_t *dtbmThisInVal)
 {
     // peek works for up to 8 bits, using next 8 bits already in dtbmThisInVal
-    *theBits = dtbmThisInVal >> bitPos;
+    *theBits = *dtbmThisInVal >> bitPos;
     *theBits &= 0xff >> (8-nBitsToPeak);
 } // end dtbmPeekBits
 
-static inline void dtbmSkipBits(const unsigned char *inVals, const uint32_t nBitsToSkip, uint32_t *thisInValIx, uint32_t *bitPos)
+static inline void dtbmSkipBits(const unsigned char *inVals, const uint32_t nBitsToSkip, uint32_t *thisInValIx, uint32_t *bitPos, uint32_t *dtbmThisInVal)
 {
     if ((*bitPos += nBitsToSkip) < 8)
     {
@@ -1453,14 +1451,14 @@ static inline void dtbmSkipBits(const unsigned char *inVals, const uint32_t nBit
     // next input: or in 0 to 7 bits
     *bitPos -= 8;
     // when 0 bits, shifted past bits to get then anded off
-    dtbmThisInVal >>= 8; // next val in upper byte
-    dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
+    *dtbmThisInVal >>= 8; // next val in upper byte
+    *dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
 } // end dtbmSkipBits
 
-static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, uint32_t *theBits)
+static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, uint32_t *theBits, uint32_t *dtbmThisInVal)
 {
     // get 1 to 8 bits from inVals into theBits
-    *theBits = dtbmThisInVal >> (*bitPos);
+    *theBits = *dtbmThisInVal >> (*bitPos);
     if ((*bitPos += nBitsToGet) < 8)
     {
         // all bits in current value with bits to spare
@@ -1468,11 +1466,11 @@ static inline void dtbmGetBits(const unsigned char *inVals, const uint32_t nBits
         return;
     }
     // next input: or in 0 to 7 bits
-    dtbmThisInVal >>= 8; // next val in upper byte
-    dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
+    *dtbmThisInVal >>= 8; // next val in upper byte
+    *dtbmThisInVal |= (uint32_t)inVals[++(*thisInValIx)+1] << 8; // read in next byte
     *bitPos -= 8;
     // when 0 bits, shifted past bits to get then anded off
-    *theBits |= dtbmThisInVal << (nBitsToGet-*bitPos);
+    *theBits |= *dtbmThisInVal << (nBitsToGet-*bitPos);
     *theBits &= 0xff >> (8-nBitsToGet);
 } // end dtbmGetBits
 
@@ -1520,33 +1518,104 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
         pTextChars = CTextChars;
     else
         pTextChars=extendedTextChars;
-    dtbmThisInVal = inVals[thisInValIx]; // initialize to first input val to decode
+    uint32_t dtbmThisInVal = inVals[thisInValIx]; // initialize to first input val to decode
     dtbmThisInVal |= (uint32_t)inVals[thisInValIx+1] << 8; // keep next value handy for peek
-    while (nextOutVal < nOriginalValues)
+    while (nextOutVal < nOriginalValues-3)
     {
         // peak at the next 7 bits to decide what to do
-        dtbmPeekBits(inVals, 7, thisInValIx, bitPos, &theBits);
+        dtbmPeekBits(7, bitPos, &theBits, &dtbmThisInVal);
         if ((theBits & 7) == 5)
         {
             // skip three bits, get 7 or 8 more bits and output original value
-            dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos);
-            dtbmGetBits(inVals, input7or8, &thisInValIx, &bitPos, &theBits);
+            dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos, &dtbmThisInVal);
+            dtbmGetBits(inVals, input7or8, &thisInValIx, &bitPos, &theBits, &dtbmThisInVal);
             outVals[nextOutVal++] = (unsigned char)theBits;
         }
         else
         {
             // output the corresponding text char and skip corresponding number of bits
-            if (textDecodePos[theBits] > 22)
-                return -87;
-            if (textDecodeBits[theBits] > 7)
-                return -86;
             outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[theBits]];
-            dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos);
+            dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos, &dtbmThisInVal);
         }
     }
-    // To avoid reading past end of input values, stop main loop three characters before the end. The last three values will require at least 2 bytes (3*3) and up to 4 bytes (3*7).
-    // complete this section in a future version of the program. An alternative would be to add one byte to the end of output in encodeAdaptiveTextMode
-    *bytesProcessed = thisInValIx + (bitPos > 0);
+    // Process the last three values: requires at least 2 bytes (3*3) and up to 4 bytes (3*7)
+    uint32_t lastBits=dtbmThisInVal>>bitPos; // next value already read
+    thisInValIx++; // reflect value pre-read in dtbmThisInVal
+    uint32_t bitsRemaining = 16-bitPos;
+    while (nextOutVal < nOriginalValues)
+    {
+        if (bitsRemaining < 3)
+        {
+            lastBits |= inVals[++thisInValIx] << bitsRemaining;
+            bitsRemaining += 8;
+        }
+        if ((lastBits & 7) == 1)
+        {
+            outVals[nextOutVal++] = (unsigned char)pTextChars[0];
+            bitsRemaining -= 3;
+            lastBits >>= 3;
+        }
+        else if ((lastBits & 7) == 3)
+        {
+            outVals[nextOutVal++] = (unsigned char)pTextChars[1];
+            bitsRemaining -= 3;
+            lastBits >>= 3;
+        }
+        else if ((lastBits & 7) == 5)
+        {
+            bitsRemaining -= 3;
+            lastBits >>= 3;
+            if (bitsRemaining < input7or8)
+            {
+                lastBits |= inVals[++thisInValIx] << bitsRemaining;
+                bitsRemaining += 8;
+            }
+            outVals[nextOutVal++] = (unsigned char)lastBits & (0xff >> (8-input7or8));
+            bitsRemaining -= input7or8;
+            lastBits >>= input7or8;
+        }
+        else if ((lastBits & 7) == 7)
+        {
+            // 4-bit value
+            if (bitsRemaining < 4)
+            {
+                lastBits |= inVals[++thisInValIx] << bitsRemaining;
+                bitsRemaining += 8;
+            }
+            outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[lastBits&0xf]];
+            bitsRemaining -= 4;
+            lastBits >>= 4;
+        }
+        else
+        {
+            // 5-bits or 7-bit value
+            if (bitsRemaining < 5)
+            {
+                lastBits |= inVals[++thisInValIx] << bitsRemaining;
+                bitsRemaining += 8;
+            }
+            if ((lastBits & 0x1f) < 30)
+            {
+                // 5-bit value
+                outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[lastBits&0x1f]];
+                bitsRemaining -= 5;
+                lastBits >>= 5;
+            }
+            else
+            {
+                // 7-bit value
+                if (bitsRemaining < 7)
+                {
+                    lastBits |= inVals[++thisInValIx] << bitsRemaining;
+                    bitsRemaining += 8;
+                }
+                outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[lastBits&0x7f]];
+                bitsRemaining -= 7;
+                lastBits >>= 7;
+            }
+        }
+    }
+    *bytesProcessed = thisInValIx + 1;
     return nextOutVal;
 } // end decodeAdaptiveTextMode
 
@@ -1712,11 +1781,10 @@ int32_t decode7bits(const unsigned char *inVals, unsigned char *outVals, const u
     return (int32_t)nOriginalValues;
 } // end decode7bits
 
-static uint32_t dsmThisVal;
-static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, int32_t *theBits)
+static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsToGet, uint32_t *thisInValIx, uint32_t *bitPos, int32_t *theBits, uint32_t *dsmThisVal)
 {
     // get 1 to 9 bits from inVals into theBits
-    *theBits = dsmThisVal >> *bitPos;
+    *theBits = *dsmThisVal >> *bitPos;
     if ((*bitPos += nBitsToGet) < 8)
     {
         // all bits in current value with bits to spare
@@ -1727,20 +1795,20 @@ static inline void dsmGetBits(const unsigned char *inVals, const uint32_t nBitsT
     {
         // bits to get use remainder of current value
         *bitPos = 0;
-        dsmThisVal = inVals[++(*thisInValIx)];
+        *dsmThisVal = inVals[++(*thisInValIx)];
         return;
     }
     else if (*bitPos == 16)
     {
         *theBits |= (inVals[++(*thisInValIx)]) << 1; // must be 9 bits
-        dsmThisVal = inVals[++(*thisInValIx)];
+        *dsmThisVal = inVals[++(*thisInValIx)];
         *bitPos = 0;
         return;
     }
     // bits split between two values with bits left (bitPos > 0)
     *bitPos -= 8;
-    dsmThisVal = inVals[++(*thisInValIx)];
-    *theBits |= dsmThisVal << (nBitsToGet-*bitPos);
+    *dsmThisVal = inVals[++(*thisInValIx)];
+    *theBits |= *dsmThisVal << (nBitsToGet-*bitPos);
     *theBits &= bitMask[nBitsToGet];
 } // end dsmGetBits
 
@@ -1795,7 +1863,7 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     }
     nextOutVal=2; // start with third output value
     const uint32_t nOrigMinus1=nOriginalValues-1;
-    dsmThisVal = inVals[thisInValIx]; // init to first input val to decode
+    uint32_t dsmThisVal = inVals[thisInValIx]; // init to first input val to decode
     while (nextOutVal < nOrigMinus1)
     {
         if ((dsmThisVal & (1 << bitPos)) == 0)
@@ -1832,7 +1900,7 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
                     bitPos = 0;
                 }
                 const uint32_t nUniqueBits = encodingBits[nUniques-1]; // current number uniques determines 1-5 bits used
-                dsmGetBits(inVals, nUniqueBits, &thisInValIx, &bitPos, &theBits);
+                dsmGetBits(inVals, nUniqueBits, &thisInValIx, &bitPos, &theBits, &dsmThisVal);
                 outVals[nextOutVal++] = pUniques[theBits]; // get uniques from start of inVals
             }
             else
@@ -1846,12 +1914,10 @@ int32_t decodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
                 // multi-character string: location of values in bits needed to code current pos
 /*                uint32_t nPosBits = encodingBits[nextOutVal];*/
                 const uint32_t nPosBits = encodingBits[nUniques-1];
-                dsmGetBits(inVals, 3+nPosBits, &thisInValIx, &bitPos, &theBits);
+                dsmGetBits(inVals, 3+nPosBits, &thisInValIx, &bitPos, &theBits, &dsmThisVal);
                 const uint32_t stringLen = (uint32_t)(theBits & 7) + 2;
                 assert(stringLen <= STRING_LIMIT);
                 const uint32_t stringPos=uPos[(uint32_t)theBits >> 3];
-                if (stringPos+stringLen > nextOutVal)
-                    return -41;
                 assert((uint32_t)stringPos+stringLen <= nextOutVal);
                 assert(nextOutVal+stringLen <= nOriginalValues);
                 memcpy(outVals+nextOutVal, outVals+stringPos, stringLen);

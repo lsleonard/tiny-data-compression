@@ -54,8 +54,8 @@ uint32_t checktd64(const unsigned char *inVals, unsigned char *tempOutVals)
     // return 0 to select extended string mode
     //        1 to select td64
     //        2 to select td64 after processing first 64 as random
-    unsigned char val256[256]={0};
-    uint32_t count[MAX_TD64_BYTES]={0};
+    uint8_t val256[256]={0};
+    uint8_t count[MAX_TD64_BYTES]={0};
     uint32_t highBitCheck=0;
     uint32_t i=0;
     
@@ -91,8 +91,8 @@ uint32_t checktd64(const unsigned char *inVals, unsigned char *tempOutVals)
         retBits = encodeExtendedStringMode(inVals, tempOutVals, 64, &nValuesRead);
         if (retBits <= 0)
             return 1; // process this block with td64
-        if (retBits > (retBitstd64=td64(inVals, tempOutVals, 64)))
-            return retBitstd64; // pick td64 if it compresses better and return compressed values
+        if (retBits+16 > (retBitstd64=td64(inVals, tempOutVals, 64)))
+            return retBitstd64; // pick td64 if string mode is less than 3% better  and return compressed values
     }
     return 0;
 } // end checktd64
@@ -103,6 +103,7 @@ uint32_t checkTextMode(const unsigned char *inVals, uint32_t nValues, uint32_t *
     // return 0 to skip text mode
     //        1 to use text mode
     //        2 to use string mode
+    
     if (nValues < 96)
         return 0; // expecting at least 96 values
     uint32_t charCount=0;

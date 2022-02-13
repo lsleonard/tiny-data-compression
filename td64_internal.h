@@ -23,6 +23,8 @@
 #ifndef td64_internal_h
 #define td64_internal_h
 
+#define MIN_STRING_MODE_EXTENDED_VALUES 16
+
 static const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
 static const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 

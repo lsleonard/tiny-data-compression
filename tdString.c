@@ -26,50 +26,6 @@
 
 #define MAX_STRING_MODE_EXTENDED_VALUES 512
 
-static inline void esmOutputRemainder(unsigned char *outValsT, uint32_t *thisOutIx, uint32_t *nextOutBit, uint64_t *outBits)
-{
-    if (*nextOutBit == 0)
-        return; // no bits to output
-    uint32_t shiftPos=0;
-    int32_t bitsRemaining=*nextOutBit-8;
-    // output bits that remain
-    outValsT[(*thisOutIx)++] = (unsigned char)*outBits;
-    while (bitsRemaining > 0)
-    {
-        shiftPos += 8;
-        outValsT[(*thisOutIx)++] = (unsigned char)(*outBits >> shiftPos);
-        bitsRemaining -= 8;
-    }
-    *nextOutBit = 0;
-} // end esmOutputRemainder
-
-static inline void esmOutputOutBits(unsigned char *outValsT, uint32_t *thisOutIx, uint64_t *outBits)
-{
-    // copy 64 bits to output
-    outValsT[(*thisOutIx)++] = (unsigned char)*outBits;
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>8);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>16);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>24);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>32);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>40);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>48);
-    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>56);
-} // end esmOutputOutBits
-
-static inline void thisOutIx2(unsigned char *outValsT, const uint32_t nBits, const uint64_t bitVal, uint32_t *thisOutIx, uint32_t *nextOutBit, uint64_t *outBits)
-{
-    // output 1 to 64 bits
-    *outBits |= bitVal << *nextOutBit;
-    *nextOutBit += nBits;
-    if (*nextOutBit >= 64)
-    {
-        esmOutputOutBits(outValsT, thisOutIx, outBits);
-        // init outBits with remainder of bits from current output
-        *nextOutBit -= 64;
-        *outBits = bitVal >> (nBits - *nextOutBit);
-    }
-} // end thisOutIx2
-
 int32_t encodeExtendedStringMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValuesMax, uint32_t *nValuesOut)
 {
     // Encode repeated strings and values in input until the 65th unique value,
@@ -492,11 +448,15 @@ int32_t decodeExtendedStringMode(const unsigned char *inVals, unsigned char *out
                 dsmGetBits(inVals, extended_string_length_bits, &thisInVal, &thisVal, &bitPos, &theBits);
                 uint32_t stringLen = (uint32_t)theBits + 2;
                 assert(stringLen <= (extended_string_length_bits==3 ? 9:17));
-                uint32_t nPosBits = encodingBits512[nextOutVal];
-                if (nPosBits < 9)
-                    dsmGetBits(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits); // 8 or fewer bits
+                if (nextOutVal < 256)
+                {
+                    const uint32_t nPosBits = encodingBits512[nextOutVal];
+                    dsmGetBits(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits); // 8 bits
+                }
                 else
-                    dsmGetBits2(inVals, nPosBits, &thisInVal, &thisVal, &bitPos, &theBits); // 9 bits
+                {
+                    dsmGetBits2(inVals, 9, &thisInVal, &thisVal, &bitPos, &theBits); // 9 bits
+                }
                 uint32_t stringPos=(uint32_t)theBits;
                 assert((uint32_t)stringPos+stringLen <= nextOutVal);
                 assert(nextOutVal+stringLen <= nOriginalValues);

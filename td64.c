@@ -583,18 +583,6 @@ int32_t td5d(const unsigned char *inVals, unsigned char *outVals, const uint32_t
     }
 } // end td5d
 
-static inline void esmOutputBits(unsigned char *outVals, const uint32_t nBits, const uint32_t bitVal, uint32_t *nextOutIx, uint32_t *nextOutBit)
-{
-    // output 1 to 8 bits
-    outVals[*nextOutIx] |= (unsigned char)(bitVal << *nextOutBit);
-    *nextOutBit += nBits;
-    if (*nextOutBit >= 8)
-    {
-        *nextOutBit -= 8;
-        outVals[++(*nextOutIx)] = (unsigned char)bitVal >> (nBits - *nextOutBit);
-    }
-} // end esmOutputBits
-
 static uint32_t textNBitsTable[MAX_PREDEFINED_FREQUENCY_CHAR_COUNT]={
     3, 3, 4, 4,
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
@@ -704,6 +692,7 @@ int32_t encodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
     uint32_t inVal;
     uint32_t nextOutIx=1;
     uint32_t nextOutBit=0;
+    uint64_t outBits=0; // store 64 bits before writing
     uint32_t eVal;
     const uint32_t *textEncodingArray=extendedTextEncoding;
     const uint32_t output7or8=highBitclear ? 7 : 8;
@@ -714,22 +703,21 @@ int32_t encodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
         setAdaptiveChars(val256, outVals, nValues, &textEncodingArray);
     if (highBitclear)
         outVals[0] |= 128; // set high bit of info byte to indicate 7-bit values
-    outVals[1] = 0; // init first value used by esmOutputBits
     while (pInVal < pLastInValPlusOne)
     {
         eVal=textEncodingArray[(inVal=(unsigned char)*(pInVal++))];
         if (eVal < MAX_PREDEFINED_FREQUENCY_CHAR_COUNT)
         {
             // encode predefined chars and adaptive chars
-            esmOutputBits(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit);
+            thisOutIx2(outVals, textNBitsTable[eVal], textBitValTable[eVal], &nextOutIx, &nextOutBit, &outBits);
         }
         else
         {
             // output char not predefined or adaptive
             if (nextOutIx > maxBytes)
                 return 0; // requested compression not met
-            esmOutputBits(outVals, 3, 0x5, &nextOutIx, &nextOutBit);
-            esmOutputBits(outVals, output7or8, inVal, &nextOutIx, &nextOutBit); // output 7 bits if high bit clear, else 8
+            thisOutIx2(outVals, 3, 0x5, &nextOutIx, &nextOutBit, &outBits);
+            thisOutIx2(outVals, output7or8, inVal, &nextOutIx, &nextOutBit, &outBits); // output 7 bits if high bit clear, else 8
 #ifdef TD64_TEST_MODE
             if (textEncodingArray == extendedTextEncoding)
                 g_td64Text8bitCount++;
@@ -738,7 +726,8 @@ int32_t encodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
 #endif
         }
     }
-    return nextOutIx * 8 + nextOutBit;
+    esmOutputRemainder(outVals, &nextOutIx, &nextOutBit, &outBits);
+    return nextOutIx * 8;
 } // end encodeAdaptiveTextMode
 
 int32_t encodeSingleValueMode(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues, int32_t singleValue, const uint32_t compressNSV)
@@ -940,6 +929,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
     //uint32_t nextOutIx=nUniquesIn + 1; // start of encoding past uniques written from outer loop;
     uint32_t nextOutIx; // round for now
     uint32_t nextOutBit=1; // first bit indicates 1 or 2 uniques in first two input values
+    uint64_t outBits; // store 64 bits before writing
     const uint32_t maxBytes=maxBits/8; // compare against bytes out during loop
     
     if (nUniquesIn > 32 || nUniquesIn < MIN_STRING_MODE_UNIQUES)
@@ -956,7 +946,6 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         nextOutIx=nUniquesIn+1;
         outVals[0] = 1 | (unsigned char)((nUniquesIn-17)<<4); // indicate string mode in first 3 bits, 0 for uniques uncompressed, then number uniques - 17 (excess 16 as always 17+ values) in next 4 bits
     }
-    outVals[nextOutIx] = 0; // init for esmOutputBits
     // output two initial values
     // first unique assumed
     const unsigned char inVal0=inVals[0];
@@ -965,7 +954,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         // first two values are the same
         nUniques = 1;
         // output 1 to indicate first unique value repeated
-        outVals[nextOutIx] = 1; // 1=repeat for second value
+        outBits = 1; // 1=repeat for second value
         twoValsPos[inVal0] = 1;
     }
     else
@@ -973,7 +962,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         // second val is a new unique
         nUniques = 2;
         // set up position of 2nd unique
-        outVals[nextOutIx] = 0; // 0=uniques in first two values
+        outBits = 0; // 0=uniques in first two values
         twoValsPos[inVal0] = 1;
         twoValsPos[inVals[1]] = 2;
     }
@@ -991,10 +980,11 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         {
             // first occurrence of this unique
             // output a 0 to indicate new unique
-            if (++nextOutBit == 8)
+            if (++nextOutBit == 64)
             {
-                // update out index and next out bit
-                outVals[++nextOutIx] = 0;
+                // output outBits and init for next output
+                esmOutputOutBits(outVals, &nextOutIx, &outBits);
+                outBits = 0;
                 nextOutBit = 0;
             }
             twoValsPos[inVal] = inPos;
@@ -1008,7 +998,7 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
             {
                 // pos of unique plus one and next input value match
                 // output repeated value: 01 plus unique
-                esmOutputBits(outVals, 2+encodingBits[nUniques-1], 1|(uoInVal<<2), &nextOutIx, &nextOutBit);
+                thisOutIx2(outVals, 2+encodingBits[nUniques-1], 1|(uoInVal<<2), &nextOutIx, &nextOutBit, &outBits);
                 continue;
             }
             // look for continuation of matching characters
@@ -1025,9 +1015,9 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
                 tvPos++;
             }
             // output 11 plus 3 more bits for string length 2 to 9
-            esmOutputBits(outVals, 5, 3 | ((strCount-2)<<2), &nextOutIx, &nextOutBit);
+            thisOutIx2(outVals, 5, 3 | ((strCount-2)<<2), &nextOutIx, &nextOutBit, &outBits);
             // output the unique that started this string, which gives its position
-            esmOutputBits(outVals, encodingBits[nUniques-1], uoInVal, &nextOutIx, &nextOutBit);
+            thisOutIx2(outVals, encodingBits[nUniques-1], uoInVal, &nextOutIx, &nextOutBit, &outBits);
             inPos += strCount - 1;
             nextInVal = inVals[inPos]; // new next val after string
         }
@@ -1035,12 +1025,11 @@ int32_t encodeStringMode(const unsigned char *inVals, unsigned char *outVals, co
         {
             // this pair doesn't match the one for first occurrence of this unique
             // repeated value: 01
-            esmOutputBits(outVals, 2+encodingBits[nUniques-1], 1|(uoInVal<<2), &nextOutIx, &nextOutBit);
+            thisOutIx2(outVals, 2+encodingBits[nUniques-1], 1|(uoInVal<<2), &nextOutIx, &nextOutBit, &outBits);
         }
     }
+    esmOutputRemainder(outVals, &nextOutIx, &nextOutBit, &outBits);
     // output final bits
-    if (nextOutBit > 0)
-        nextOutIx++; // index past final bits
     if (inPos < nValues)
     {
         outVals[nextOutIx++] = inVals[lastPos]; // output last input byte
@@ -1524,18 +1513,18 @@ int32_t decodeAdaptiveTextMode(const unsigned char *inVals, unsigned char *outVa
     {
         // peak at the next 7 bits to decide what to do
         dtbmPeekBits(7, bitPos, &theBits, &dtbmThisInVal);
-        if ((theBits & 7) == 5)
+        if ((theBits & 7) != 5)
+        {
+            // output the corresponding text char and skip corresponding number of bits
+            outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[theBits]];
+            dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos, &dtbmThisInVal);
+        }
+        else
         {
             // skip three bits, get 7 or 8 more bits and output original value
             dtbmSkipBits(inVals, 3, &thisInValIx, &bitPos, &dtbmThisInVal);
             dtbmGetBits(inVals, input7or8, &thisInValIx, &bitPos, &theBits, &dtbmThisInVal);
             outVals[nextOutVal++] = (unsigned char)theBits;
-        }
-        else
-        {
-            // output the corresponding text char and skip corresponding number of bits
-            outVals[nextOutVal++] = (unsigned char)pTextChars[textDecodePos[theBits]];
-            dtbmSkipBits(inVals, textDecodeBits[theBits], &thisInValIx, &bitPos, &dtbmThisInVal);
         }
     }
     // Process the last three values: requires at least 2 bytes (3*3) and up to 4 bytes (3*7)

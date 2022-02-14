@@ -27,7 +27,7 @@
 #define NDEBUG // disable asserts
 #include <assert.h>
 
-#define TD64_VERSION "v2.1.7"
+#define TD64_VERSION "v2.1.8"
 #define MAX_TD64_BYTES 64  // max input vals supported
 #define MIN_TD64_BYTES 1  // min input vals supported
 #define MAX_UNIQUES 16 // max uniques supported in input

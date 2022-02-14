@@ -28,6 +28,50 @@
 static const uint32_t encodingBits[64]={1,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6};
 static const uint32_t bitMask[]={0,1,3,7,15,31,63,127,255,511};
 
+static inline void esmOutputRemainder(unsigned char *outValsT, uint32_t *thisOutIx, uint32_t *nextOutBit, uint64_t *outBits)
+{
+    if (*nextOutBit == 0)
+        return; // no bits to output
+    uint32_t shiftPos=0;
+    int32_t bitsRemaining=*nextOutBit-8;
+    // output bits that remain
+    outValsT[(*thisOutIx)++] = (unsigned char)*outBits;
+    while (bitsRemaining > 0)
+    {
+        shiftPos += 8;
+        outValsT[(*thisOutIx)++] = (unsigned char)(*outBits >> shiftPos);
+        bitsRemaining -= 8;
+    }
+    *nextOutBit = 0;
+} // end esmOutputRemainder
+
+static inline void esmOutputOutBits(unsigned char *outValsT, uint32_t *thisOutIx, uint64_t *outBits)
+{
+    // copy 64 bits to output
+    outValsT[(*thisOutIx)++] = (unsigned char)*outBits;
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>8);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>16);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>24);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>32);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>40);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>48);
+    outValsT[(*thisOutIx)++] = (unsigned char)(*outBits>>56);
+} // end esmOutputOutBits
+
+static inline void thisOutIx2(unsigned char *outValsT, const uint32_t nBits, const uint64_t bitVal, uint32_t *thisOutIx, uint32_t *nextOutBit, uint64_t *outBits)
+{
+    // output 1 to 64 bits
+    *outBits |= bitVal << *nextOutBit;
+    *nextOutBit += nBits;
+    if (*nextOutBit >= 64)
+    {
+        esmOutputOutBits(outValsT, thisOutIx, outBits);
+        // init outBits with remainder of bits from current output
+        *nextOutBit -= 64;
+        *outBits = bitVal >> (nBits - *nextOutBit);
+    }
+} // end thisOutIx2
+
 static int32_t encode7bitsInternal(const unsigned char *inVals, unsigned char *outVals, const uint32_t nValues)
 {
     // for internal use: output 7 bytes for each 8-byte group, then remaining bytes

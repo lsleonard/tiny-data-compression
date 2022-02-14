@@ -61,6 +61,11 @@
  2. In td64.c, decodeAdaptiveTextMode, made dtbmThisVal internal to function rather than static global. Added a read-ahead byte so that peaking at bits does not require an extra read. The read-ahead means main loop must stop three values early to avoid reading beyond end of input values, and those three values must be processed without read-ahead.
  3. In td64.c, decodeStringMode, made dsmThisVal internal to function rather than static global.
  */
+// Notes for version 2.1.8:
+/*
+ 1. In tdString.c, moved the inline functions for bit output to td64_internal.h where they can also be used by functions in td64.c.
+ 2. In td64.c, implemented bit output improvements for encode AdaptiveTextMode and encodeStringMode.
+ */
 #ifndef td512_h
 #define td512_h
 

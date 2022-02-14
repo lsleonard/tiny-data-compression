@@ -78,7 +78,7 @@ RUN_512:
 int main(int argc, char* argv[])
 {
     FILE *ifile, *ofile;
-    char ofileName[256];
+    char ofileName[FILENAME_MAX];
     unsigned char *src, *dst;
     size_t len, len2, len3;
     clock_t begin, end;
@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
     src = (unsigned char*) malloc(len);
     fread(src, 1, len, ifile);
     fclose(ifile);
-    
+
     // allocate "uncompressed size" + 3 bytes per block for the destination buffer
     dst = (unsigned char*) malloc(len + 4 * (len / blockSize + 1));
     if (argc >= 3)
